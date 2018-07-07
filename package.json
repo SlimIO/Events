@@ -1,0 +1,33 @@
+{
+  "name": "@slimio/events",
+  "version": "1.0.0",
+  "description": "SlimIO - Events (Built-in Addon)",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/SlimIO/Events.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/SlimIO/Events/issues"
+  },
+  "homepage": "https://github.com/SlimIO/Events#readme",
+  "devDependencies": {
+    "@escommunity/minami": "^1.0.0",
+    "@slimio/eslint-config": "^1.1.7",
+    "@types/es6-shim": "^0.31.37",
+    "@types/node": "^10.5.2",
+    "ava": "^0.25.0",
+    "eslint": "^5.0.1",
+    "nyc": "^12.0.2"
+  },
+  "dependencies": {
+    "@slimio/addon": "^0.1.0",
+    "driftless": "^2.0.3"
+  }
+}
