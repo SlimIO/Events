@@ -21,6 +21,8 @@
     "@escommunity/minami": "^1.0.0",
     "@slimio/eslint-config": "^1.1.7",
     "@types/es6-shim": "^0.31.37",
+    "@types/leveldown": "^1.7.0",
+    "@types/levelup": "0.0.30",
     "@types/node": "^10.5.2",
     "ava": "^0.25.0",
     "eslint": "^5.0.1",
@@ -28,6 +30,7 @@
   },
   "dependencies": {
     "@slimio/addon": "^0.1.0",
-    "driftless": "^2.0.3"
+    "leveldown": "^4.0.1",
+    "levelup": "^3.1.0"
   }
 }
