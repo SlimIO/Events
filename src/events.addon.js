@@ -1,7 +1,4 @@
 // Require Node.JS Dependencies
-const {
-    mkdir
-} = require("fs").promises;
 const { join } = require("path");
 
 // Require Third-party Dependencies
@@ -15,25 +12,25 @@ const Addon = require("@slimio/addon");
 const Events = new Addon("events");
 
 // Globals var
-const dbDirectory = join(__dirname, "db");
+const DB_DIR_PATH = join(__dirname, "..", "db");
 
 /** @type {levelup.LevelUpBase<levelup.Batch>} */
 let db = null;
 
-/** @type {levelup.LevelUpBase<levelup.Batch>} */
-let history = null;
-
 /** @type {Set<String>} */
-const availableTypes = new Set();
+const AVAILABLE_TYPES = new Set();
+
+const DEFAULT_EVENTS_TYPES = ["alarm", "metric", "log", "error"];
 
 /**
+ * @async
  * @func openDB
  * @desc Open level database handler
  * @param {!String} name dbname
  * @returns {levelup.LevelUpBase<levelup.Batch>}
  */
 function openDB(name) {
-    return levelup(leveldown(join(dbDirectory, name)));
+    return levelup(leveldown(join(DB_DIR_PATH, name)), { createIfMissing: true });
 }
 
 /**
@@ -64,17 +61,17 @@ function closeDB(db) {
  * @return {Promise<String>}
  */
 async function registerEventType(name, options = {}) {
-    if (availableTypes.has(name)) {
+    if (name === "events") {
+        return "Event type name 'events' is INVALID!";
+    }
+    if (AVAILABLE_TYPES.has(name)) {
         return `Event type with name ${name} is already registered!`;
     }
-    availableTypes.add(name);
-    const {
-        dump = false,
-        storeLocally = true
-    } = options;
+    AVAILABLE_TYPES.add(name);
+    const { storeLocally = true } = options;
 
     if (storeLocally === true) {
-        const types = [...availableTypes].join(",");
+        const types = [...AVAILABLE_TYPES].join(",");
         await db.put("types", types);
     }
 
@@ -83,66 +80,65 @@ async function registerEventType(name, options = {}) {
 
 /**
  * @async
- * @func add
- * @desc Add (publish) a new event!
+ * @func publishEvent
+ * @desc Publish a new event!
  * @param {!String} type event type
- * @param {!String} body event body
- * @return {Promise<void>}
+ * @param {!Buffer} rawBuf buffer
+ * @return {Promise<Number>}
  */
-async function add(type, body) {
-    setImmediate(() => {
-        process.stdout.write(`${body}\n`);
-    });
+async function publishEvent(type, rawBuf) {
+    const [rType, dest = null] = type.split(".");
+    const time = Date.now();
+
+    return time;
 }
-
-// Event "init" handler
-Events.on("init", async() => {
-    console.log("events addon initialized");
-
-    // Create root DB directory
-    await mkdir(dbDirectory);
-});
 
 // Event "start" handler
 Events.on("start", async() => {
-    history = openDB("history");
+    // Open events db!
     db = openDB("events");
 
     try {
         /** @type {String} */
-        const types = await db.get("types");
+        const types = (await db.get("types")).toString();
         for (const type of types.split(",")) {
-            availableTypes.add(type);
+            AVAILABLE_TYPES.add(type);
         }
     }
-    catch {
-        // Do nothing!
+    catch (error) {
+        // Do nothing...
+    }
+
+    // Return if every default types are loaded!
+    if (DEFAULT_EVENTS_TYPES.every((eT) => AVAILABLE_TYPES.has(eT) === true)) {
+        console.log("EVENTS: All default types are loaded successfully!");
+
+        return;
     }
 
     /** @type {registerEventOptions} */
     const defaultRegisterOption = { storeLocally: false };
 
-    // Setup all default type!
+    // Setup all default types!
     await Promise.all([
         registerEventType("alarm", defaultRegisterOption),
         registerEventType("metric", defaultRegisterOption),
         registerEventType("log", defaultRegisterOption),
-        registerEventType("error", { dump: true, ...defaultRegisterOption })
+        registerEventType("error", defaultRegisterOption)
     ]);
 
-    const types = [...availableTypes].join(",");
-    await db.set("types", types);
+    //
+    await db.put("types", [...AVAILABLE_TYPES].join(","));
 });
 
 // Event "stop" handler
 Events.on("stop", () => {
     closeDB(db);
-    closeDB(history);
 });
 
 // Register addon callback(s)
-Events.registerCallback(add);
-Events.registerCallback(registerEventType);
+Events.registerCallback("register_event_type", registerEventType);
+Events.registerCallback("publish_event", publishEvent);
 
 // Export addon
 module.exports = Events;
