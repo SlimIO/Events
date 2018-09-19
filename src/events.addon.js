@@ -1,10 +1,11 @@
 // Require Node.JS Dependencies
-const { mkdir } = require("fs").promises;
-const { join } = require("path");
+const { mkdir, readdir, readFile } = require("fs").promises;
+const { join, extname, basename } = require("path");
 
 // Require Third-party Dependencies
 const levelup = require("levelup");
 const leveldown = require("leveldown");
+const protobuf = require("protocol-buffers");
 
 // Require Internal Dependencies
 const Addon = require("@slimio/addon");
@@ -12,16 +13,19 @@ const Addon = require("@slimio/addon");
 // Create Addon!
 const Events = new Addon("events");
 
-// Globals var
+// CONSTANTS
 const DB_DIR_PATH = join(__dirname, "..", "db");
+const PROTOTYPE_DIR_PATH = join(__dirname, "..", "prototypes");
+const DEFAULT_EVENTS_TYPES = ["alarm", "metric", "log", "error"];
 
 /** @type {levelup.LevelUpBase<levelup.Batch>} */
 let db = null;
 
 /** @type {Set<String>} */
-const AVAILABLE_TYPES = new Set();
+const AVAILABLE_TYPES = new Set(DEFAULT_EVENTS_TYPES);
 
-const DEFAULT_EVENTS_TYPES = ["alarm", "metric", "log", "error"];
+/** @type {Map<String, any>} */
+const PROTOTYPES_TYPES = new Map();
 
 /**
  * @async
@@ -104,24 +108,27 @@ async function registerEventType(name, options = {}) {
  * @param {!Buffer} rawBuf buffer
  * @return {Promise<Number>}
  */
-async function publishEvent(type, rawBuf) {
+async function publishEvent([type, rawBuf]) {
     if (typeof type !== "string") {
         throw new TypeError("type should be typeof string");
     }
     if (!Buffer.isBuffer(rawBuf)) {
         throw new TypeError("rawBuf should be typeof Buffer!");
     }
-    const [rType, dest = null] = type.split("/");
+
+    const [rType, dest = null] = type.toLowerCase().split("/");
     if (!AVAILABLE_TYPES.has(rType)) {
         throw new Error(`Unknow type ${rType}`);
     }
     const time = Date.now();
+    console.log(`[EVENTS] New event. type: ${rType}, destination: ${dest} at ${new Date(time).toString()}`);
 
     // Open DB
     const db = openDB(dest !== null ? type : rType);
 
-    // Put in DB (TODO: get valueEncoding)
-    await db.put(time, rawBuf, { valueEncoding: null });
+    // Put in DB
+    const proto = PROTOTYPES_TYPES.get(rType);
+    await db.put(time, rawBuf, { valueEncoding: proto.Event });
 
     closeDB(db);
 
@@ -131,7 +138,25 @@ async function publishEvent(type, rawBuf) {
 // Event "start" handler
 Events.on("start", async() => {
     // Open events db!
+    console.log("[EVENTS] Start event triggered!");
     db = openDB("events");
+
+    // Load available Prototypes
+    {
+        const files = await readdir(PROTOTYPE_DIR_PATH);
+        for (const file of files) {
+            if (extname(file) !== ".proto") {
+                continue;
+            }
+            try {
+                const proto = protobuf(await readFile(join(PROTOTYPE_DIR_PATH, file)));
+                PROTOTYPES_TYPES.set(basename(file, ".proto"), proto);
+            }
+            catch (error) {
+                console.log(`[EVENTS] Failed to load prototype ${file} - ${error.toString()}`);
+            }
+        }
+    }
 
     // Create all default types directory!
     await Promise.all(DEFAULT_EVENTS_TYPES.map((type) => createDir(join(DB_DIR_PATH, type))));
@@ -143,13 +168,13 @@ Events.on("start", async() => {
             AVAILABLE_TYPES.add(type);
         }
     }
-    catch {
+    catch (err) {
         // Do nothing...
     }
 
     // Return if every default types are loaded!
     if (DEFAULT_EVENTS_TYPES.every((eT) => AVAILABLE_TYPES.has(eT) === true)) {
-        console.log("EVENTS: All default types are loaded successfully!");
+        console.log("[EVENTS] All types already loaded!");
 
         return;
     }
@@ -167,6 +192,7 @@ Events.on("start", async() => {
 
     //
     await db.put("types", [...AVAILABLE_TYPES].join(","));
+    console.log("[EVENTS] All types updated successfully!");
 });
 
 // Event "stop" handler

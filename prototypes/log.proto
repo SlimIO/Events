@@ -1,9 +1,7 @@
 syntax = "proto3";
 
-message Log {
+message Event {
     required string message = 1;
-    required string origin = 2;
-    required int32 severity = 3;
-    required int32 timestamp = 4;
-    optional int category = 5;
+    required int32 severity = 2;
+    required int32 timestamp = 3;
 }

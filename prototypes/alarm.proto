@@ -4,7 +4,7 @@ enum SEVERITY {
     CRITICAL = 1;
 }
 
-message Alarm {
+message Event {
     int32 id = 1;
     string source = 2;
     string origin = 3;
