@@ -1,7 +1,0 @@
-syntax = "proto3";
-
-package Alarm;
-
-message Default {
-    string source = 1;
-}

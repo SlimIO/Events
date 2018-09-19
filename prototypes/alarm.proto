@@ -1,0 +1,12 @@
+syntax = "proto3";
+
+enum SEVERITY {
+    CRITICAL = 1;
+}
+
+message Alarm {
+    int32 id = 1;
+    string source = 2;
+    string origin = 3;
+    SEVERITY severity = 4;
+}
