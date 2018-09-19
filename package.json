@@ -21,17 +21,17 @@
     "@escommunity/minami": "^1.0.0",
     "@slimio/eslint-config": "^1.1.7",
     "@types/es6-shim": "^0.31.37",
-    "@types/leveldown": "^1.7.0",
-    "@types/levelup": "0.0.30",
-    "@types/node": "^10.5.2",
+    "@types/leveldown": "^1.7.2",
+    "@types/levelup": "^3.1.0",
+    "@types/node": "^10.10.1",
     "ava": "^0.25.0",
-    "eslint": "^5.0.1",
+    "eslint": "^5.6.0",
     "nyc": "^12.0.2"
   },
   "dependencies": {
     "@slimio/addon": "^0.1.0",
     "leveldown": "^4.0.1",
-    "levelup": "^3.1.0",
+    "levelup": "^3.1.1",
     "protocol-buffers": "^4.1.0"
   }
 }
