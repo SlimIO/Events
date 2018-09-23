@@ -30,6 +30,7 @@
   },
   "dependencies": {
     "@slimio/addon": "^0.1.0",
+    "@slimio/is": "^1.0.0",
     "leveldown": "^4.0.1",
     "levelup": "^3.1.1",
     "protocol-buffers": "^4.1.0"
