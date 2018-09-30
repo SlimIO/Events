@@ -8,6 +8,4 @@ CREATE TABLE IF NOT EXISTS "alarms" (
     "updatedAt" REAL DEFAULT CURRENT_TIMESTAMP NOT NULL,
     "occurence" UNSIGNED MEDIUMINT DEFAULT 0 NOT NULL,
     "entity_uid" CHAR(36)
-)
-
--- 8 + 36 + 1 + 200  + 1 + 8 + 8 + 3 + 36 = 301bytes
+);

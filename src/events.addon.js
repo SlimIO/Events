@@ -38,8 +38,8 @@ Events.on("start", async() => {
     // db = new sqlite(join(DB_DIR, "events.db"));
     // db.exec(await readFile(join(ROOT, "sql", "events.sql"), "utf8"));
 
-    const metricsTest = new sqlite(join(DB_DIR, "metric.sql"));
-    metricsTest.exec(await readFile(join(ROOT, "sql", "metric.sql"), "utf8"));
+    const metricsTest = new sqlite(join(DB_DIR, "events.db"));
+    metricsTest.exec(await readFile(join(ROOT, "sql", "events.sql"), "utf8"));
 
     Events.emit("ready");
 });
