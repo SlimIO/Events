@@ -1,66 +1,54 @@
-// Require Node.JS Dependencies
+// Require NodeJS Dependencies
+const { readFile } = require("fs").promises;
 const { join } = require("path");
 
-// Require Third-party Dependencies
-const is = require("@slimio/is");
-
-// Require Internal Dependencies
+// Require Third-Party Dependencies
 const Addon = require("@slimio/addon");
-const DBManager = require("./dbmanager");
+const sqlite = require("better-sqlite3");
+const { createDirectory } = require("@slimio/utils");
+
+// CONSTANTS
+const ROOT = join(__dirname, "..");
+const DB_DIR = join(ROOT, "db");
+let db;
 
 // Create EVENTS Addon!
 const Events = new Addon("events");
-const Manager = new DBManager(["alarm", "metric", "log", "error"]);
 
-/**
- * @async
- * @func publishEvent
- * @desc Publish a new event!
- * @param {!String} type event type name (name/destination)
- * @param {!Buffer} rawBuf raw payload buffer
- * @return {Promise<Number>}
- *
- * @throws {Error}
- */
-async function publishEvent([type, rawBuf]) {
-    if (!is.string(type)) {
-        throw new TypeError("type should be typeof string");
-    }
-    if (!is.buffer(rawBuf)) {
-        throw new TypeError("rawBuf should be typeof Buffer!");
-    }
+async function registerIdentity() {
+    // Do things..
+}
 
-    const [rType, dest = null] = type.toLowerCase().split("/");
-    if (!Manager.defaultTypes.has(rType)) {
-        throw new Error(`Unknow type ${rType}`);
-    }
-    const time = Date.now();
-    console.log(`[EVENTS] New event. type: ${rType}, destination: ${dest} at ${new Date(time).toString()}`);
+async function publishMetricIdentity() {
+    // Do things..
+}
 
-    // Open DB
-    const db = DBManager.open(dest !== null ? type : rType);
+async function publishAlarm() {
+    // Do things..
+}
 
-    // Put in DB
-    const proto = Manager.prototypes.get(rType);
-    await db.put(time, rawBuf, { valueEncoding: proto.Event });
-
-    DBManager.close(db);
-
-    return time;
+async function publishMetric() {
+    // Do things..
 }
 
 // Event "start" handler
 Events.on("start", async() => {
     console.log("[EVENTS] Start event triggered!");
-    await Promise.all(
-        Manager.createDBDirectories(),
-        Manager.loadPrototypes()
-    );
-    console.log("[EVENTS] Successfully loaded!");
+    await createDirectory(DB_DIR);
+    // db = new sqlite(join(DB_DIR, "events.db"));
+    // db.exec(await readFile(join(ROOT, "sql", "events.sql"), "utf8"));
+
+    const metricsTest = new sqlite(join(DB_DIR, "metric.sql"));
+    metricsTest.exec(await readFile(join(ROOT, "sql", "metric.sql"), "utf8"));
+
+    Events.emit("ready");
 });
 
 // Register addon callback(s)
-Events.registerCallback("publish_event", publishEvent);
+Events.registerCallback("register_identity", registerIdentity);
+Events.registerCallback("publish_mic", publishMetricIdentity);
+Events.registerCallback("publish_alarm", publishAlarm);
+Events.registerCallback("publish_metric", publishMetric);
 
 // Export addon
 module.exports = Events;
