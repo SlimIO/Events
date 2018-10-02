@@ -1,5 +1,4 @@
 CREATE TABLE IF NOT EXISTS "metrics" (
-    "id" INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
     "value" INTEGER NOT NULL,
     "harvestedAt" REAL NOT NULL
 );
