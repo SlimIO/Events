@@ -1,7 +1,0 @@
-syntax = "proto3";
-
-message Event {
-    required string message = 1;
-    required int32 severity = 2;
-    required int32 timestamp = 3;
-}
