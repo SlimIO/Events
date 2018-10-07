@@ -6,7 +6,14 @@ CREATE TABLE IF NOT EXISTS "entity" (
     "parent" INTEGER,
     "name" VARCHAR(100) NOT NULL,
     "description" VARCHAR(75) DEFAULT "N/A" NOT NULL,
+    "createdAt" DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     CONSTRAINT fk_parent_id FOREIGN KEY("parent") REFERENCES entity("id") ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS "entity_oids" (
+    "entity_id" INTEGER NOT NULL,
+    "oid" VARCHAR(255) NOT NULL,
+    CONSTRAINT fk_entity_id FOREIGN KEY("entity_id") REFERENCES entity("id") ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS "entity_descriptor" (

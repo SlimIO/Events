@@ -1,6 +1,7 @@
 // Require NodeJS Dependencies
 const { readFile } = require("fs").promises;
 const { join } = require("path");
+const os = require("os");
 
 // Require Third-Party Dependencies
 const Addon = require("@slimio/addon");
@@ -19,14 +20,49 @@ let db = null;
 
 // Create EVENTS Addon!
 const Events = new Addon("events");
+Events.catch((err) => {
+    console.error(err);
+});
 
 async function declareEntityDescriptor(entityId, key, value) {
     if (!Events.isReady) {
         throw new Error("Events Addon is not yet ready!");
     }
 
-    db.prepare("INSERT INTO entity_descriptor (entity_id, key, value) VALUES (@id, @key, @value)")
-        .run({ id: entityId, key, value });
+    const row = db.prepare(
+        "SELECT value FROM entity_descriptor WHERE entity_id=? AND key=?"
+    ).get(entityId, key);
+
+    if (typeof row !== "undefined") {
+        if (value !== row.value) {
+            db.prepare(
+                "UPDATE entity_descriptor SET value=? WHERE entity_id=? AND key=?"
+            ).run(row.value, entityId, key);
+        }
+
+        return;
+    }
+
+    // Insert descriptor!
+    db.prepare(
+        "INSERT INTO entity_descriptor VALUES (@entityId, @key, @value)"
+    ).run({ entityId, key, value });
+}
+
+async function getEntityOID(entityId) {
+    if (!Events.isReady) {
+        throw new Error("Events Addon is not yet ready!");
+    }
+    if (typeof entityId !== "number") {
+        throw new TypeError("entityId should be typeof number!");
+    }
+
+    const row = db.prepare("SELECT oid FROM entity_oids WHERE entity_id=?").get(entityId);
+    if (typeof row === "undefined") {
+        throw new Error(`Unable to found any OID for entity id ${entityId}`);
+    }
+
+    return row.oid;
 }
 
 async function declareEntity(entity) {
@@ -34,11 +70,15 @@ async function declareEntity(entity) {
         throw new Error("Events Addon is not yet ready!");
     }
     assertEntity(entity);
-    const { name, parent, description, descriptors = {} } = entity;
+    const { name, parent = 1, description, descriptors = {} } = entity;
 
     // If the entity exist, then return the id
-    const row = db.prepare("SELECT id FROM entity WHERE name=@name").get({ name });
+    const row = db.prepare("SELECT id, description FROM entity WHERE name=? AND parent=?").get([name, parent]);
     if (typeof row !== "undefined") {
+        if (description !== row.description) {
+            db.prepare("UPDATE entity SET description=? WHERE id=?").run(row.id);
+        }
+
         for (const [key, value] of Object.entries(descriptors)) {
             declareEntityDescriptor(row.id, key, value).catch(console.error);
         }
@@ -47,23 +87,23 @@ async function declareEntity(entity) {
     }
 
     // Else, create a new row for the entity!
-    const stmt = db.prepare(
-        "INSERT INTO entity(uuid, name, parent, description) VALUES(uuid(), @name, @parent, @description)"
-    );
+    const { lastInsertROWID } = db.prepare(
+        "INSERT INTO entity (uuid, name, parent, description) VALUES(uuid(), @name, @parent, @description)"
+    ).run({ name, parent, description });
 
-    const RowID = stmt.run({ name, parent, description }).lastInsertROWID;
+    const oid = parent === null ? "1." : `${await getEntityOID(parent)}${lastInsertROWID}.`;
+    db.prepare(
+        "INSERT INTO entity_oids VALUES(@rowid, @oid)"
+    ).run({ rowid: lastInsertROWID, oid });
+
     for (const [key, value] of Object.entries(descriptors)) {
-        declareEntityDescriptor(row.id, key, value).catch(console.error);
+        declareEntityDescriptor(lastInsertROWID, key, value).catch(console.error);
     }
 
-    return RowID;
+    return lastInsertROWID;
 }
 
 async function removeEntity(entityId) {
-
-}
-
-async function getEntityOID(entityName) {
 
 }
 
@@ -89,7 +129,23 @@ Events.on("start", async() => {
         return uuidv4();
     });
 
-    Events.ready();
+    setImmediate(() => {
+        Events.ready();
+    });
+    await Events.once("ready");
+
+    // Declare root Entity!
+    declareEntity({
+        name: os.hostname(),
+        parent: null,
+        description: "",
+        descriptors: {
+            arch: os.arch(),
+            platform: os.platform(),
+            release: os.release(),
+            type: os.type()
+        }
+    });
 });
 
 // Register addon callback(s)
@@ -97,6 +153,7 @@ Events.registerCallback("declare_entity", declareEntity);
 Events.registerCallback("declare_entity_descriptor", declareEntityDescriptor);
 Events.registerCallback("remove_entity", removeEntity);
 Events.registerCallback("get_entity_oid", getEntityOID);
+
 Events.registerCallback("declare_mic", declareMetricIdentity);
 Events.registerCallback("publish_alarm", publishAlarm);
 Events.registerCallback("publish_metric", publishMetric);

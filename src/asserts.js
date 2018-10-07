@@ -11,8 +11,8 @@ function assertEntity(entity) {
     if (!is.nullOrUndefined(entity.description) && !is.string(entity.description)) {
         throw new TypeError("entity.description property should be typeof string");
     }
-    if (!is.nullOrUndefined(entity.parent) && !is.string(entity.parent)) {
-        throw new TypeError("entity.parent property should be typeof string");
+    if (!is.nullOrUndefined(entity.parent) && !is.number(entity.parent)) {
+        throw new TypeError("entity.parent property should be typeof number");
     }
     if (!is.nullOrUndefined(entity.descriptors) && !is.plainObject(entity.descriptors)) {
         throw new TypeError("entity.descriptors should be a plainObject!");
