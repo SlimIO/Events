@@ -19,6 +19,22 @@ function assertEntity(entity) {
     }
 }
 
+function assertMIC(mic) {
+    if (!is.plainObject(mic)) {
+        throw new TypeError("mic should be a plainObject!");
+    }
+    if (!is.string(mic.name)) {
+        throw new TypeError("mic.name property should be typeof string");
+    }
+    if (!is.number(mic.entity_id)) {
+        throw new TypeError("mic.entity_id property should be typeof number");
+    }
+    if (!is.nullOrUndefined(mic.description) && !is.string(mic.description)) {
+        throw new TypeError("mic.description property should be typeof string");
+    }
+}
+
 module.exports = {
-    assertEntity
+    assertEntity,
+    assertMIC
 };

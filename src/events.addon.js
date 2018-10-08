@@ -5,13 +5,12 @@ const os = require("os");
 
 // Require Third-Party Dependencies
 const Addon = require("@slimio/addon");
-const is = require("@slimio/is");
 const sqlite = require("better-sqlite3");
 const { createDirectory } = require("@slimio/utils");
 const uuidv4 = require("uuid/v4");
 
 // Require Internal Dependencies
-const { assertEntity } = require("./asserts");
+const { assertEntity, assertMIC } = require("./asserts");
 
 // CONSTANTS
 const ROOT = join(__dirname, "..");
@@ -104,18 +103,41 @@ async function declareEntity(entity) {
 }
 
 async function removeEntity(entityId) {
+    if (!Events.isReady) {
+        throw new Error("Events Addon is not yet ready!");
+    }
+    if (typeof entityId !== "number") {
+        throw new TypeError("entityId should be typeof number");
+    }
 
+    const row = db.prepare("SELECT id FROM entity WHERE id=?").get(entityId);
+    if (typeof row !== "undefined") {
+        db.prepare("DELETE FROM entity WHERE id=?").run(entityId);
+    }
 }
 
-async function declareMetricIdentity() {
-    // Do things..
+async function declareMetricIdentity(mic) {
+    if (!Events.isReady) {
+        throw new Error("Events Addon is not yet ready!");
+    }
+    assertMIC(mic);
+    const { name, description: desc = "", entity_id: entityId } = mic;
+
+    const row = db.prepare(
+        "SELECT id FROM metric_identity_card WHERE name=? AND entity_id=?"
+    ).get([name, entityId]);
+    if (typeof row !== "undefined") {
+        // Update row here!
+
+        return;
+    }
+
+    db.prepare( // eslint-disable-next-line
+        "INSERT INTO metric_identity_card (name, description, sample_unit, sample_interval, sample_max_value, entity_id) VALUES (@name, @desc, @unit, @interval, @max, @entityId)"
+    ).run({ name, desc, unit: 0, interval: 5, max: null, entityId });
 }
 
-async function publishAlarm() {
-    // Do things..
-}
-
-async function publishMetric() {
+async function publishMetric(micId, entityId, value) {
     // Do things..
 }
 
@@ -155,7 +177,6 @@ Events.registerCallback("remove_entity", removeEntity);
 Events.registerCallback("get_entity_oid", getEntityOID);
 
 Events.registerCallback("declare_mic", declareMetricIdentity);
-Events.registerCallback("publish_alarm", publishAlarm);
 Events.registerCallback("publish_metric", publishMetric);
 
 // Export addon
