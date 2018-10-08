@@ -15,6 +15,7 @@ const { assertEntity, assertMIC } = require("./asserts");
 // CONSTANTS
 const ROOT = join(__dirname, "..");
 const DB_DIR = join(ROOT, "db");
+const METRICS_DIR = join(DB_DIR, "metrics");
 let db = null;
 
 // Create EVENTS Addon!
@@ -35,7 +36,7 @@ async function declareEntityDescriptor(entityId, key, value) {
     if (typeof row !== "undefined") {
         if (value !== row.value) {
             db.prepare(
-                "UPDATE entity_descriptor SET value=? WHERE entity_id=? AND key=?"
+                "UPDATE entity_descriptor SET value=? AND updatedAt=now() WHERE entity_id=? AND key=?"
             ).run(row.value, entityId, key);
         }
 
@@ -44,7 +45,7 @@ async function declareEntityDescriptor(entityId, key, value) {
 
     // Insert descriptor!
     db.prepare(
-        "INSERT INTO entity_descriptor VALUES (@entityId, @key, @value)"
+        "INSERT INTO entity_descriptor (entity_id, key, value) VALUES (@entityId, @key, @value)"
     ).run({ entityId, key, value });
 }
 
@@ -69,13 +70,18 @@ async function declareEntity(entity) {
         throw new Error("Events Addon is not yet ready!");
     }
     assertEntity(entity);
+    let row;
     const { name, parent = 1, description, descriptors = {} } = entity;
 
-    // If the entity exist, then return the id
-    const row = db.prepare("SELECT id, description FROM entity WHERE name=? AND parent=?").get([name, parent]);
+    if (parent === null) {
+        row = db.prepare("SELECT id, description FROM entity WHERE name=? AND parent IS NULL").get(name);
+    }
+    else {
+        row = db.prepare("SELECT id, description FROM entity WHERE name=? AND parent=?").get([name, parent]);
+    }
     if (typeof row !== "undefined") {
         if (description !== row.description) {
-            db.prepare("UPDATE entity SET description=? WHERE id=?").run(row.id);
+            db.prepare("UPDATE entity SET description=? WHERE id=?").run(description, row.id);
         }
 
         for (const [key, value] of Object.entries(descriptors)) {
@@ -121,34 +127,58 @@ async function declareMetricIdentity(mic) {
         throw new Error("Events Addon is not yet ready!");
     }
     assertMIC(mic);
-    const { name, description: desc = "", entity_id: entityId } = mic;
+    const {
+        name,
+        description: desc = "",
+        unit,
+        interval = 5,
+        max = null,
+        entityId
+    } = mic;
 
     const row = db.prepare(
-        "SELECT id FROM metric_identity_card WHERE name=? AND entity_id=?"
+        "SELECT id, description, sample_interval as interval FROM metric_identity_card WHERE name=? AND entity_id=?"
     ).get([name, entityId]);
     if (typeof row !== "undefined") {
-        // Update row here!
+        if (row.description !== desc || row.interval !== interval) {
+            db.prepare(
+                "UPDATE metric_identity_card SET description=@desc AND interval=@interval WHERE id=@id"
+            ).run({ desc, interval, id: row.id });
+        }
 
-        return;
+        return row.id;
     }
 
-    db.prepare( // eslint-disable-next-line
+    const { lastInsertROWID } = db.prepare( // eslint-disable-next-line
         "INSERT INTO metric_identity_card (name, description, sample_unit, sample_interval, sample_max_value, entity_id) VALUES (@name, @desc, @unit, @interval, @max, @entityId)"
-    ).run({ name, desc, unit: 0, interval: 5, max: null, entityId });
+    ).run({ name, desc, unit, interval, max, entityId });
+
+    // Create the Metrics DB file!
+    const mDB = new sqlite(join(METRICS_DIR, `${lastInsertROWID}.db`));
+    mDB.exec("CREATE TABLE IF NOT EXISTS \"metrics\" (\"value\" INTEGER NOT NULL, \"harvestedAt\" REAL NOT NULL);");
+    mDB.close();
+
+    return lastInsertROWID;
 }
 
-async function publishMetric(micId, entityId, value) {
-    // Do things..
+async function publishMetric(micId, value, harvestedAt) {
+    if (!Events.isReady) {
+        throw new Error("Events Addon is not yet ready!");
+    }
 }
 
 // Event "start" handler
 Events.on("start", async() => {
     console.log("[EVENTS] Start event triggered!");
     await createDirectory(DB_DIR);
+    await createDirectory(METRICS_DIR);
     db = new sqlite(join(DB_DIR, "events.db"));
     db.exec(await readFile(join(ROOT, "sql", "events.sql"), "utf8"));
     db.register(function uuid() {
         return uuidv4();
+    });
+    db.register(function now() {
+        return Date.now();
     });
 
     setImmediate(() => {
@@ -175,7 +205,6 @@ Events.registerCallback("declare_entity", declareEntity);
 Events.registerCallback("declare_entity_descriptor", declareEntityDescriptor);
 Events.registerCallback("remove_entity", removeEntity);
 Events.registerCallback("get_entity_oid", getEntityOID);
-
 Events.registerCallback("declare_mic", declareMetricIdentity);
 Events.registerCallback("publish_metric", publishMetric);
 

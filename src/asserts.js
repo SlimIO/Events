@@ -26,8 +26,17 @@ function assertMIC(mic) {
     if (!is.string(mic.name)) {
         throw new TypeError("mic.name property should be typeof string");
     }
-    if (!is.number(mic.entity_id)) {
-        throw new TypeError("mic.entity_id property should be typeof number");
+    if (!is.number(mic.entityId)) {
+        throw new TypeError("mic.entityId property should be typeof number");
+    }
+    if (!is.string(mic.unit)) {
+        throw new TypeError("mic.unit property should be typeof string");
+    }
+    if (!is.nullOrUndefined(mic.interval) && !is.number(mic.interval)) {
+        throw new TypeError("mic.interval property should be typeof number");
+    }
+    if (!is.nullOrUndefined(mic.max) && !is.number(mic.max)) {
+        throw new TypeError("mic.max property should be typeof number");
     }
     if (!is.nullOrUndefined(mic.description) && !is.string(mic.description)) {
         throw new TypeError("mic.description property should be typeof string");
