@@ -31,7 +31,8 @@
     "@slimio/addon": "^0.6.0",
     "@slimio/is": "^1.1.0",
     "@slimio/utils": "^0.4.0",
-    "better-sqlite3": "^4.1.4",
+    "better-sqlite3": "^4.2.0",
+    "driftless": "^2.0.3",
     "uuid": "^3.3.2"
   }
 }

@@ -8,15 +8,21 @@ const Addon = require("@slimio/addon");
 const sqlite = require("better-sqlite3");
 const { createDirectory } = require("@slimio/utils");
 const uuidv4 = require("uuid/v4");
+const { setDriftlessInterval, clearDriftless } = require("driftless");
 
 // Require Internal Dependencies
 const { assertEntity, assertMIC } = require("./asserts");
+const QueueMap = require("./queue");
 
 // CONSTANTS
 const ROOT = join(__dirname, "..");
 const DB_DIR = join(ROOT, "db");
 const METRICS_DIR = join(DB_DIR, "metrics");
 let db = null;
+let interval = null;
+
+// QUEUES
+const metricsQueue = new QueueMap();
 
 // Create EVENTS Addon!
 const Events = new Addon("events");
@@ -161,17 +167,56 @@ async function declareMetricIdentity(mic) {
     return lastInsertROWID;
 }
 
-async function publishMetric(micId, value, harvestedAt) {
+async function publishMetric([micId, value, harvestedAt = Date.now()]) {
     if (!Events.isReady) {
         throw new Error("Events Addon is not yet ready!");
     }
+    if (typeof micId !== "number") {
+        throw new TypeError("metric micId should be typeof number!");
+    }
+    if (typeof value !== "number") {
+        throw new TypeError("metric value should be typeof number!");
+    }
+
+    console.log(`Enqueue new metric for mic ${micId} with value ${value}`);
+    metricsQueue.enqueue(micId, [value, harvestedAt]);
 }
 
-// Event "start" handler
+async function publisherInterval() {
+    console.log("Publisher interval triggered!");
+    /** @type {Array<Number, Number>} */
+    let currMetric;
+
+    for (const id of metricsQueue.ids()) {
+        console.log(`Handle metric(s) with id ${id}`);
+        console.time(`transaction_${id}`);
+
+        const mDB = new sqlite(join(METRICS_DIR, `${id}.db`));
+        const stmt = mDB.prepare("INSERT INTO metrics VALUES(?, ?)");
+
+        const metricsArr = [];
+        let len = metricsQueue.idLength(id);
+        while ((currMetric = metricsQueue.dequeue(id)) !== null || len === 1) {
+            metricsArr.push(currMetric);
+            len--;
+        }
+
+        const createMany = mDB.transaction((metrics) => {
+            for (const metric of metrics) {
+                stmt.run(metric);
+            }
+        });
+        createMany(metricsArr);
+        mDB.close();
+        console.timeEnd(`transaction_${id}`);
+    }
+}
+
 Events.on("start", async() => {
     console.log("[EVENTS] Start event triggered!");
     await createDirectory(DB_DIR);
     await createDirectory(METRICS_DIR);
+
     db = new sqlite(join(DB_DIR, "events.db"));
     db.exec(await readFile(join(ROOT, "sql", "events.sql"), "utf8"));
     db.register(function uuid() {
@@ -198,6 +243,15 @@ Events.on("start", async() => {
             type: os.type()
         }
     });
+
+    interval = setDriftlessInterval(publisherInterval, 5000);
+});
+
+Events.on("stop", () => {
+    if (interval !== null) {
+        clearDriftless(interval);
+        interval = null;
+    }
 });
 
 // Register addon callback(s)
