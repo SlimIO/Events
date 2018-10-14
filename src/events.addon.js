@@ -219,16 +219,10 @@ Events.on("start", async() => {
 
     db = new sqlite(join(DB_DIR, "events.db"));
     db.exec(await readFile(join(ROOT, "sql", "events.sql"), "utf8"));
-    db.register(function uuid() {
-        return uuidv4();
-    });
-    db.register(function now() {
-        return Date.now();
-    });
+    db.function("uuid", () => uuidv4());
+    db.function("now", () => Date.now());
 
-    setImmediate(() => {
-        Events.ready();
-    });
+    setImmediate(() => Events.ready());
     await Events.once("ready");
 
     // Declare root Entity!
