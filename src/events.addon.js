@@ -98,20 +98,20 @@ async function declareEntity(entity) {
     }
 
     // Else, create a new row for the entity!
-    const { lastInsertROWID } = db.prepare(
+    const { lastInsertRowid } = db.prepare(
         "INSERT INTO entity (uuid, name, parent, description) VALUES(uuid(), @name, @parent, @description)"
     ).run({ name, parent, description });
 
-    const oid = parent === null ? "1." : `${await getEntityOID(parent)}${lastInsertROWID}.`;
+    const oid = parent === null ? "1." : `${await getEntityOID(parent)}${lastInsertRowid}.`;
     db.prepare(
-        "INSERT INTO entity_oids VALUES(@rowid, @oid)"
-    ).run({ rowid: lastInsertROWID, oid });
+        "INSERT INTO entity_oids (entity_id, oid) VALUES(@rowid, @oid)"
+    ).run({ rowid: lastInsertRowid, oid });
 
     for (const [key, value] of Object.entries(descriptors)) {
-        declareEntityDescriptor(lastInsertROWID, key, value).catch(console.error);
+        declareEntityDescriptor(lastInsertRowid, key, value).catch(console.error);
     }
 
-    return lastInsertROWID;
+    return lastInsertRowid;
 }
 
 async function removeEntity(entityId) {
@@ -155,16 +155,16 @@ async function declareMetricIdentity(mic) {
         return row.id;
     }
 
-    const { lastInsertROWID } = db.prepare( // eslint-disable-next-line
+    const { lastInsertRowid } = db.prepare( // eslint-disable-next-line
         "INSERT INTO metric_identity_card (name, description, sample_unit, sample_interval, sample_max_value, entity_id) VALUES (@name, @desc, @unit, @interval, @max, @entityId)"
     ).run({ name, desc, unit, interval, max, entityId });
 
     // Create the Metrics DB file!
-    const mDB = new sqlite(join(METRICS_DIR, `${lastInsertROWID}.db`));
+    const mDB = new sqlite(join(METRICS_DIR, `${lastInsertRowid}.db`));
     mDB.exec("CREATE TABLE IF NOT EXISTS \"metrics\" (\"value\" INTEGER NOT NULL, \"harvestedAt\" REAL NOT NULL);");
     mDB.close();
 
-    return lastInsertROWID;
+    return lastInsertRowid;
 }
 
 async function publishMetric(micId, value, harvestedAt = Date.now()) {
