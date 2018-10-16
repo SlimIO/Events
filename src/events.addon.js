@@ -31,7 +31,7 @@ Events.catch((err) => {
 });
 
 async function declareEntityDescriptor(entityId, key, value) {
-    if (!Events.isReady) {
+    if (db === null) {
         throw new Error("Events Addon is not yet ready!");
     }
 
@@ -56,7 +56,7 @@ async function declareEntityDescriptor(entityId, key, value) {
 }
 
 async function getEntityOID(entityId) {
-    if (!Events.isReady) {
+    if (db === null) {
         throw new Error("Events Addon is not yet ready!");
     }
     if (typeof entityId !== "number") {
@@ -72,7 +72,7 @@ async function getEntityOID(entityId) {
 }
 
 async function declareEntity(entity) {
-    if (!Events.isReady) {
+    if (db === null) {
         throw new Error("Events Addon is not yet ready!");
     }
     assertEntity(entity);
@@ -222,9 +222,7 @@ Events.on("start", async() => {
     db.function("uuid", () => uuidv4());
     db.function("now", () => Date.now());
 
-    setImmediate(() => Events.ready());
-    await Events.once("ready");
-
+    console.log("[EVENTS] Declare root entity!");
     // Declare root Entity!
     declareEntity({
         name: os.hostname(),
@@ -237,6 +235,9 @@ Events.on("start", async() => {
             type: os.type()
         }
     });
+
+    setImmediate(() => Events.ready());
+    await Events.once("ready");
 
     interval = setDriftlessInterval(publisherInterval, 5000);
 });
