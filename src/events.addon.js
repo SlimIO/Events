@@ -167,7 +167,7 @@ async function declareMetricIdentity(mic) {
     return lastInsertROWID;
 }
 
-async function publishMetric([micId, value, harvestedAt = Date.now()]) {
+async function publishMetric(micId, value, harvestedAt = Date.now()) {
     if (!Events.isReady) {
         throw new Error("Events Addon is not yet ready!");
     }
