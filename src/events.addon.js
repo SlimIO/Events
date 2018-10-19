@@ -77,7 +77,7 @@ async function declareEntity(entity) {
     }
     assertEntity(entity);
     let row;
-    const { name, parent = 1, description, descriptors = {} } = entity;
+    const { name, parent = 1, description = null, descriptors = {} } = entity;
 
     if (parent === null) {
         row = db.prepare("SELECT id, description FROM entity WHERE name=? AND parent IS NULL").get(name);

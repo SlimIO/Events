@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS "entity" (
     "uuid" CHAR(36) NOT NULL,
     "parent" INTEGER,
     "name" VARCHAR(100) NOT NULL,
-    "description" VARCHAR(75) DEFAULT "N/A" NOT NULL,
+    "description" VARCHAR(75) DEFAULT 'N/A' NOT NULL,
     "createdAt" DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     CONSTRAINT fk_parent_id FOREIGN KEY("parent") REFERENCES entity("id") ON DELETE CASCADE
 );
