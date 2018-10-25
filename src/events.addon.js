@@ -18,8 +18,40 @@ const QueueMap = require("./queue");
 const ROOT = join(__dirname, "..");
 const DB_DIR = join(ROOT, "db");
 const METRICS_DIR = join(DB_DIR, "metrics");
+
+// GLOBALS
 let db = null;
 let interval = null;
+
+/**
+ * @typedef Transaction
+ * @param {String} action Action name (insert, update, select, remove)
+ * @param {String} name Group name
+ * @param {any[]} data Data to push
+ */
+
+/**
+ * @const wTransac
+ * @desc Transaction table that contains all SQL query actions
+ * @type {Transaction[]}
+ */
+const wTransac = [];
+
+// Prepared stmt of SQL Query
+const SQLQUERY = {
+    descriptor: {
+        select: "SELECT value FROM entity_descriptor WHERE entity_id=? AND key=?",
+        update: "UPDATE entity_descriptor SET value=? AND updatedAt=now() WHERE entity_id=? AND key=?",
+        insert: "INSERT INTO entity_descriptor (entity_id, key, value) VALUES (?, ?, ?)"
+    },
+    entity: {
+        update: "UPDATE entity SET description=? WHERE id=?",
+        delete: "DELETE FROM entity WHERE id=?"
+    }
+};
+
+// QUEUES
+const Q_METRICS = new QueueMap();
 
 /**
  * @function dbShouldBeOpen
@@ -32,69 +64,62 @@ function dbShouldBeOpen() {
     }
 }
 
-// QUEUES
-const metricsQueue = new QueueMap();
-
 // Create EVENTS Addon!
 const Events = new Addon("events");
 
+/**
+ * @async
+ * @function declareEntityDescriptor
+ * @desc Declare one descriptor for a given entity!
+ * @param {!Number} entityId entityId
+ * @param {!String} key descriptor key
+ * @param {!String} value descriptor value
+ * @returns {Promise<void>}
+ */
 async function declareEntityDescriptor(entityId, key, value) {
     dbShouldBeOpen();
-
-    const row = db.prepare(
-        "SELECT value FROM entity_descriptor WHERE entity_id=? AND key=?"
-    ).get(entityId, key);
+    const row = SQLQUERY.descriptor.select.get(entityId, key);
 
     if (typeof row !== "undefined") {
         if (value !== row.value) {
-            db.prepare(
-                "UPDATE entity_descriptor SET value=? AND updatedAt=now() WHERE entity_id=? AND key=?"
-            ).run(row.value, entityId, key);
+            wTransac.push({ action: "update", name: "descriptor", data: [row.value, entityId, key] });
         }
-
-        return;
     }
-
-    // Insert descriptor!
-    db.prepare(
-        "INSERT INTO entity_descriptor (entity_id, key, value) VALUES (@entityId, @key, @value)"
-    ).run({ entityId, key, value });
+    else {
+        wTransac.push({ action: "insert", name: "descriptor", data: [entityId, key, value] });
+    }
 }
 
-async function getEntityOID(entityId) {
-    dbShouldBeOpen();
-    if (typeof entityId !== "number") {
-        throw new TypeError("entityId should be typeof number!");
-    }
-
-    const row = db.prepare("SELECT oid FROM entity_oids WHERE entity_id=?").get(entityId);
-    if (typeof row === "undefined") {
-        throw new Error(`Unable to found any OID for entity id ${entityId}`);
-    }
-
-    return row.oid;
-}
-
+/**
+ * @async
+ * @function declareEntity
+ * @desc Declare a new entity
+ * @param {*} entity entity
+ * @returns {Promise<Number>}
+ */
 async function declareEntity(entity) {
     dbShouldBeOpen();
     assertEntity(entity);
-    let row;
     const { name, parent = 1, description = null, descriptors = {} } = entity;
 
+    let row;
     if (parent === null) {
         row = db.prepare("SELECT id, description FROM entity WHERE name=? AND parent IS NULL").get(name);
     }
     else {
         row = db.prepare("SELECT id, description FROM entity WHERE name=? AND parent=?").get([name, parent]);
     }
+
     if (typeof row !== "undefined") {
         if (description !== row.description) {
-            db.prepare("UPDATE entity SET description=? WHERE id=?").run(description, row.id);
+            wTransac.push({ action: "update", name: "entity", data: [description, row.id] });
         }
 
-        for (const [key, value] of Object.entries(descriptors)) {
-            declareEntityDescriptor(row.id, key, value).catch(console.error);
-        }
+        setImmediate(() => {
+            for (const [key, value] of Object.entries(descriptors)) {
+                declareEntityDescriptor(row.id, key, value);
+            }
+        });
 
         return row.id;
     }
@@ -103,29 +128,33 @@ async function declareEntity(entity) {
     const { lastInsertRowid } = db.prepare(
         "INSERT INTO entity (uuid, name, parent, description) VALUES(uuid(), @name, @parent, @description)"
     ).run({ name, parent, description });
-
-    const oid = parent === null ? "1." : `${await getEntityOID(parent)}${lastInsertRowid}.`;
-    db.prepare(
-        "INSERT INTO entity_oids (entity_id, oid) VALUES(@rowid, @oid)"
-    ).run({ rowid: lastInsertRowid, oid });
-
-    for (const [key, value] of Object.entries(descriptors)) {
-        declareEntityDescriptor(lastInsertRowid, key, value).catch(console.error);
+    if (typeof lastInsertRowid !== "number") {
+        throw new Error("Failed to insert new entity!");
     }
+
+    setImmediate(() => {
+        for (const [key, value] of Object.entries(descriptors)) {
+            declareEntityDescriptor(lastInsertRowid, key, value);
+        }
+    });
 
     return lastInsertRowid;
 }
 
+/**
+ * @async
+ * @function removeEntity
+ * @desc Remove an entity by his id!
+ * @param {!Number} entityId entityId
+ * @returns {Promise<void>}
+ */
 async function removeEntity(entityId) {
     dbShouldBeOpen();
     if (typeof entityId !== "number") {
         throw new TypeError("entityId should be typeof number");
     }
 
-    const row = db.prepare("SELECT id FROM entity WHERE id=?").get(entityId);
-    if (typeof row !== "undefined") {
-        db.prepare("DELETE FROM entity WHERE id=?").run(entityId);
-    }
+    wTransac.push({ action: "delete", name: "entity", data: [entityId] });
 }
 
 async function declareMetricIdentity(mic) {
@@ -175,7 +204,7 @@ async function publishMetric(micId, value, harvestedAt = Date.now()) {
     }
 
     console.log(`Enqueue new metric for mic ${micId} with value ${value}`);
-    metricsQueue.enqueue(micId, [value, harvestedAt]);
+    Q_METRICS.enqueue(micId, [value, harvestedAt]);
 }
 
 async function createAlarm() {
@@ -198,7 +227,21 @@ async function removeAlarms() {
 async function populateMetricsInterval() {
     console.log("Publisher interval triggered!");
 
-    for (const id of metricsQueue.ids()) {
+    // Handle waiting transactions!
+    console.time("wTransac");
+    if (wTransac.length > 0) {
+        db.transaction(() => {
+            const tTransacArr = wTransac.splice(0, wTransac.length);
+            while (tTransacArr.length > 0) {
+                const ts = tTransacArr.pop();
+                SQLQUERY[ts.name][ts.action].run(ts.data);
+            }
+        })();
+    }
+    console.timeEnd("wTransac");
+
+    // Handle Metrics DBs transactions
+    for (const id of Q_METRICS.ids()) {
         console.log(`Handle metric(s) with id ${id}`);
         const mDB = new sqlite(join(METRICS_DIR, `${id}.db`));
         const stmt = mDB.prepare("INSERT INTO metrics VALUES(?, ?)");
@@ -208,11 +251,12 @@ async function populateMetricsInterval() {
                 stmt.run(metric);
             }
         });
-        createMany([...metricsQueue.dequeueAll(id)]);
+        createMany([...Q_METRICS.dequeueAll(id)]);
         mDB.close();
     }
 }
 
+// Addon "Start" event listener
 Events.on("start", async() => {
     console.log("[EVENTS] Start event triggered!");
     await createDirectory(DB_DIR);
@@ -222,6 +266,13 @@ Events.on("start", async() => {
     db.exec(await readFile(join(ROOT, "sql", "events.sql"), "utf8"));
     db.function("uuid", () => uuidv4());
     db.function("now", () => Date.now());
+
+    // Prepare Available SQLQuery
+    for (const groupName of Object.values(SQLQUERY)) {
+        for (const queryName of Object.keys(groupName)) {
+            groupName[queryName] = db.prepare(groupName[queryName]);
+        }
+    }
 
     console.log("[EVENTS] Declare root entity!");
     // Declare root Entity!
@@ -243,6 +294,7 @@ Events.on("start", async() => {
     interval = setDriftlessInterval(populateMetricsInterval, 5000);
 });
 
+// Addon "Stop" event listener
 Events.on("stop", () => {
     if (interval !== null) {
         clearDriftless(interval);
@@ -254,7 +306,6 @@ Events.on("stop", () => {
 Events.registerCallback("declare_entity", declareEntity);
 Events.registerCallback("declare_entity_descriptor", declareEntityDescriptor);
 Events.registerCallback("remove_entity", removeEntity);
-Events.registerCallback("get_entity_oid", getEntityOID);
 Events.registerCallback("declare_mic", declareMetricIdentity);
 Events.registerCallback("publish_metric", publishMetric);
 
@@ -263,5 +314,5 @@ Events.registerCallback("create_alarm", createAlarm);
 Events.registerCallback("get_alarms", getAlarms);
 Events.registerCallback("remove_alarms", removeAlarms);
 
-// Export addon
+// Export "Events" addon for Core
 module.exports = Events;
