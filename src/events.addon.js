@@ -178,6 +178,18 @@ async function publishMetric(micId, value, harvestedAt = Date.now()) {
     metricsQueue.enqueue(micId, [value, harvestedAt]);
 }
 
+async function createAlarm() {
+
+}
+
+async function getAlarms() {
+
+}
+
+async function removeAlarms() {
+
+}
+
 /**
  * @function populateMetricsInterval
  * @desc Metrics populate interval
@@ -238,13 +250,18 @@ Events.on("stop", () => {
     }
 });
 
-// Register addon callback(s)
+// Register metric callback(s)
 Events.registerCallback("declare_entity", declareEntity);
 Events.registerCallback("declare_entity_descriptor", declareEntityDescriptor);
 Events.registerCallback("remove_entity", removeEntity);
 Events.registerCallback("get_entity_oid", getEntityOID);
 Events.registerCallback("declare_mic", declareMetricIdentity);
 Events.registerCallback("publish_metric", publishMetric);
+
+// Register alarms callback(s)
+Events.registerCallback("create_alarm", createAlarm);
+Events.registerCallback("get_alarms", getAlarms);
+Events.registerCallback("remove_alarms", removeAlarms);
 
 // Export addon
 module.exports = Events;
