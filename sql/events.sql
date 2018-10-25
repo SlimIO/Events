@@ -48,5 +48,6 @@ CREATE TABLE IF NOT EXISTS "alarms" (
     "createdAt" REAL DEFAULT CURRENT_TIMESTAMP NOT NULL,
     "updatedAt" REAL DEFAULT CURRENT_TIMESTAMP NOT NULL,
     "occurence" UNSIGNED MEDIUMINT DEFAULT 0 NOT NULL,
-    "entity_uid" CHAR(36)
+    "entity_uuid" CHAR(36) NOT NULL,
+    CONSTRAINT fk_entity_uuid FOREIGN KEY("entity_uuid") REFERENCES entity("uuid") ON DELETE CASCADE
 );
