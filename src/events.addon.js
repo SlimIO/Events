@@ -21,19 +21,25 @@ const METRICS_DIR = join(DB_DIR, "metrics");
 let db = null;
 let interval = null;
 
+/**
+ * @function dbShouldBeOpen
+ * @desc check if the event DB is open (shortcut method).
+ * @return {void}
+ */
+function dbShouldBeOpen() {
+    if (db === null) {
+        throw new Error("Events Addon is not yet ready!");
+    }
+}
+
 // QUEUES
 const metricsQueue = new QueueMap();
 
 // Create EVENTS Addon!
 const Events = new Addon("events");
-Events.catch((err) => {
-    console.error(err);
-});
 
 async function declareEntityDescriptor(entityId, key, value) {
-    if (db === null) {
-        throw new Error("Events Addon is not yet ready!");
-    }
+    dbShouldBeOpen();
 
     const row = db.prepare(
         "SELECT value FROM entity_descriptor WHERE entity_id=? AND key=?"
@@ -56,9 +62,7 @@ async function declareEntityDescriptor(entityId, key, value) {
 }
 
 async function getEntityOID(entityId) {
-    if (db === null) {
-        throw new Error("Events Addon is not yet ready!");
-    }
+    dbShouldBeOpen();
     if (typeof entityId !== "number") {
         throw new TypeError("entityId should be typeof number!");
     }
@@ -72,9 +76,7 @@ async function getEntityOID(entityId) {
 }
 
 async function declareEntity(entity) {
-    if (db === null) {
-        throw new Error("Events Addon is not yet ready!");
-    }
+    dbShouldBeOpen();
     assertEntity(entity);
     let row;
     const { name, parent = 1, description = null, descriptors = {} } = entity;
@@ -115,9 +117,7 @@ async function declareEntity(entity) {
 }
 
 async function removeEntity(entityId) {
-    if (!Events.isReady) {
-        throw new Error("Events Addon is not yet ready!");
-    }
+    dbShouldBeOpen();
     if (typeof entityId !== "number") {
         throw new TypeError("entityId should be typeof number");
     }
@@ -129,9 +129,7 @@ async function removeEntity(entityId) {
 }
 
 async function declareMetricIdentity(mic) {
-    if (!Events.isReady) {
-        throw new Error("Events Addon is not yet ready!");
-    }
+    dbShouldBeOpen();
     assertMIC(mic);
     const {
         name,
@@ -168,9 +166,7 @@ async function declareMetricIdentity(mic) {
 }
 
 async function publishMetric(micId, value, harvestedAt = Date.now()) {
-    if (!Events.isReady) {
-        throw new Error("Events Addon is not yet ready!");
-    }
+    dbShouldBeOpen();
     if (typeof micId !== "number") {
         throw new TypeError("metric micId should be typeof number!");
     }
@@ -182,33 +178,26 @@ async function publishMetric(micId, value, harvestedAt = Date.now()) {
     metricsQueue.enqueue(micId, [value, harvestedAt]);
 }
 
-async function publisherInterval() {
+/**
+ * @function populateMetricsInterval
+ * @desc Metrics populate interval
+ * @returns {Promise<void>}
+ */
+async function populateMetricsInterval() {
     console.log("Publisher interval triggered!");
-    /** @type {Array<Number, Number>} */
-    let currMetric;
 
     for (const id of metricsQueue.ids()) {
         console.log(`Handle metric(s) with id ${id}`);
-        console.time(`transaction_${id}`);
-
         const mDB = new sqlite(join(METRICS_DIR, `${id}.db`));
         const stmt = mDB.prepare("INSERT INTO metrics VALUES(?, ?)");
-
-        const metricsArr = [];
-        let len = metricsQueue.idLength(id);
-        while ((currMetric = metricsQueue.dequeue(id)) !== null || len === 1) {
-            metricsArr.push(currMetric);
-            len--;
-        }
 
         const createMany = mDB.transaction((metrics) => {
             for (const metric of metrics) {
                 stmt.run(metric);
             }
         });
-        createMany(metricsArr);
+        createMany([...metricsQueue.dequeueAll(id)]);
         mDB.close();
-        console.timeEnd(`transaction_${id}`);
     }
 }
 
@@ -239,7 +228,7 @@ Events.on("start", async() => {
     setImmediate(() => Events.ready());
     await Events.once("ready");
 
-    interval = setDriftlessInterval(publisherInterval, 5000);
+    interval = setDriftlessInterval(populateMetricsInterval, 5000);
 });
 
 Events.on("stop", () => {

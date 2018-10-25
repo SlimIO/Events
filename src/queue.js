@@ -32,7 +32,7 @@ class QueueMap {
     }
 
     /**
-     * @method enqueue
+     * @method dequeue
      * @param {!String|Number|Symbol} id key identifier
      * @returns {any}
      */
@@ -48,6 +48,24 @@ class QueueMap {
         }
 
         return arrRef.shift();
+    }
+
+    /**
+     * @method dequeueAll
+     * @param {!String|Number|Symbol} id key identifier
+     * @returns {Iterator<any>}
+     */
+    *dequeueAll(id) {
+        const q_ = Queues.get(this);
+        if (!q_.has(id)) {
+            throw new Error(`Unknow queue id ${id}`);
+        }
+
+        const arrRef = q_.get(id);
+        let len = arrRef.length;
+        while (len--) {
+            yield arrRef.shift();
+        }
     }
 
     /**
