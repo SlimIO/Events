@@ -47,6 +47,9 @@ const SQLQUERY = {
     entity: {
         update: "UPDATE entity SET description=? WHERE id=?",
         delete: "DELETE FROM entity WHERE id=?"
+    },
+    mic: {
+        update: "UPDATE metric_identity_card SET description=? AND sample_interval=? WHERE id=?"
     }
 };
 
@@ -157,26 +160,24 @@ async function removeEntity(entityId) {
     wTransac.push({ action: "delete", name: "entity", data: [entityId] });
 }
 
+/**
+ * @async
+ * @function declareMetricIdentity
+ * @desc Remove an entity by his id!
+ * @param {*} mic MetricIdentityCard
+ * @returns {Promise<Number>}
+ */
 async function declareMetricIdentity(mic) {
     dbShouldBeOpen();
     assertMIC(mic);
-    const {
-        name,
-        description: desc = "",
-        unit,
-        interval = 5,
-        max = null,
-        entityId
-    } = mic;
+    const { name, description: desc = "", unit, interval = 5, max = null, entityId } = mic;
 
     const row = db.prepare(
         "SELECT id, description, sample_interval as interval FROM metric_identity_card WHERE name=? AND entity_id=?"
     ).get([name, entityId]);
     if (typeof row !== "undefined") {
         if (row.description !== desc || row.interval !== interval) {
-            db.prepare(
-                "UPDATE metric_identity_card SET description=@desc AND interval=@interval WHERE id=@id"
-            ).run({ desc, interval, id: row.id });
+            wTransac.push({ action: "update", name: "mic", data: [desc, interval, row.id] });
         }
 
         return row.id;
@@ -187,9 +188,12 @@ async function declareMetricIdentity(mic) {
     ).run({ name, desc, unit, interval, max, entityId });
 
     // Create the Metrics DB file!
-    const mDB = new sqlite(join(METRICS_DIR, `${lastInsertRowid}.db`));
-    mDB.exec("CREATE TABLE IF NOT EXISTS \"metrics\" (\"value\" INTEGER NOT NULL, \"harvestedAt\" REAL NOT NULL);");
-    mDB.close();
+    setImmediate(() => {
+        const mDB = new sqlite(join(METRICS_DIR, `${lastInsertRowid}.db`));
+        mDB.pragma("auto_vacuum = 1");
+        mDB.exec("CREATE TABLE IF NOT EXISTS \"metrics\" (\"value\" INTEGER NOT NULL, \"harvestedAt\" DATE NOT NULL);");
+        mDB.close();
+    });
 
     return lastInsertRowid;
 }
@@ -203,7 +207,7 @@ async function publishMetric(micId, value, harvestedAt = Date.now()) {
         throw new TypeError("metric value should be typeof number!");
     }
 
-    console.log(`Enqueue new metric for mic ${micId} with value ${value}`);
+    // console.log(`Enqueue new metric for mic ${micId} with value ${value}`);
     Q_METRICS.enqueue(micId, [value, harvestedAt]);
 }
 
@@ -241,19 +245,29 @@ async function populateMetricsInterval() {
     console.timeEnd("wTransac");
 
     // Handle Metrics DBs transactions
+    console.time("metrics_transaction");
     for (const id of Q_METRICS.ids()) {
-        console.log(`Handle metric(s) with id ${id}`);
-        const mDB = new sqlite(join(METRICS_DIR, `${id}.db`));
+        const metrics = [...Q_METRICS.dequeueAll(id)];
+        if (metrics.length <= 0) {
+            continue;
+        }
+
+        const mDB = new sqlite(join(METRICS_DIR, `${id}.db`), {
+            fileMustExist: true,
+            timeout: 100
+        });
         const stmt = mDB.prepare("INSERT INTO metrics VALUES(?, ?)");
 
-        const createMany = mDB.transaction((metrics) => {
+        console.time(`run_transact_${id}`);
+        mDB.transaction((metrics) => {
             for (const metric of metrics) {
                 stmt.run(metric);
             }
-        });
-        createMany([...Q_METRICS.dequeueAll(id)]);
+        })();
+        console.timeEnd(`run_transact_${id}`);
         mDB.close();
     }
+    console.timeEnd("metrics_transaction");
 }
 
 // Addon "Start" event listener
@@ -300,6 +314,7 @@ Events.on("stop", () => {
         clearDriftless(interval);
         interval = null;
     }
+    db.close();
 });
 
 // Register metric callback(s)
