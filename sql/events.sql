@@ -10,12 +10,6 @@ CREATE TABLE IF NOT EXISTS "entity" (
     CONSTRAINT fk_parent_id FOREIGN KEY("parent") REFERENCES entity("id") ON DELETE CASCADE
 );
 
-CREATE TABLE IF NOT EXISTS "entity_oids" (
-    "entity_id" INTEGER NOT NULL,
-    "oid" VARCHAR(255) NOT NULL,
-    CONSTRAINT fk_entity_id FOREIGN KEY("entity_id") REFERENCES entity("id") ON DELETE CASCADE
-);
-
 CREATE TABLE IF NOT EXISTS "entity_descriptor" (
     "entity_id" INTEGER NOT NULL,
     "key" VARCHAR(40) NOT NULL,
@@ -48,6 +42,6 @@ CREATE TABLE IF NOT EXISTS "alarms" (
     "createdAt" REAL DEFAULT CURRENT_TIMESTAMP NOT NULL,
     "updatedAt" REAL DEFAULT CURRENT_TIMESTAMP NOT NULL,
     "occurence" UNSIGNED MEDIUMINT DEFAULT 0 NOT NULL,
-    "entity_uuid" CHAR(36) NOT NULL,
-    CONSTRAINT fk_entity_uuid FOREIGN KEY("entity_uuid") REFERENCES entity("uuid") ON DELETE CASCADE
+    "entity_id" INTEGER NOT NULL,
+    CONSTRAINT fk_entity_uuid FOREIGN KEY("entity_id") REFERENCES entity("id") ON DELETE CASCADE
 );
