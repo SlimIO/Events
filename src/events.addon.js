@@ -11,17 +11,19 @@ const uuidv4 = require("uuid/v4");
 const { setDriftlessInterval, clearDriftless } = require("driftless");
 
 // Require Internal Dependencies
-const { assertEntity, assertMIC } = require("./asserts");
+const { assertEntity, assertMIC, assertAlarm } = require("./asserts");
 const QueueMap = require("./queue");
 
 // CONSTANTS
 const ROOT = join(__dirname, "..");
 const DB_DIR = join(ROOT, "db");
+const POPULATE_INTERVAL_MS = 1000;
 const METRICS_DIR = join(DB_DIR, "metrics");
 
 // GLOBALS
 let db = null;
 let interval = null;
+let SQL_T_DEFAULT;
 
 /**
  * @typedef Transaction
@@ -198,6 +200,15 @@ async function declareMetricIdentity(mic) {
     return lastInsertRowid;
 }
 
+/**
+ * @async
+ * @function publishMetric
+ * @desc Publish a new metric (to be queue for population).
+ * @param {!Number} micId MetricIdentityCard ID
+ * @param {!Number} value Metric value
+ * @param {Number=} harvestedAt Metric harvested timestamp
+ * @returns {Promise<void>}
+ */
 async function publishMetric(micId, value, harvestedAt = Date.now()) {
     dbShouldBeOpen();
     if (typeof micId !== "number") {
@@ -211,16 +222,36 @@ async function publishMetric(micId, value, harvestedAt = Date.now()) {
     Q_METRICS.enqueue(micId, [value, harvestedAt]);
 }
 
-async function createAlarm() {
-
+/**
+ * @async
+ * @function createAlarm
+ * @desc Create a new Alarm
+ * @param {*} alarm Alarm Object
+ * @returns {Promise<void>}
+ */
+async function createAlarm(alarm) {
+    dbShouldBeOpen();
+    assertAlarm(alarm);
 }
 
+/**
+ * @async
+ * @function createAlarm
+ * @desc Get all or one alarms
+ * @returns {Promise<void>}
+ */
 async function getAlarms() {
-
+    dbShouldBeOpen();
 }
 
+/**
+ * @async
+ * @function createAlarm
+ * @desc Remove all or one alarms
+ * @returns {Promise<void>}
+ */
 async function removeAlarms() {
-
+    dbShouldBeOpen();
 }
 
 /**
@@ -234,13 +265,7 @@ async function populateMetricsInterval() {
     // Handle waiting transactions!
     console.time("wTransac");
     if (wTransac.length > 0) {
-        db.transaction(() => {
-            const tTransacArr = wTransac.splice(0, wTransac.length);
-            while (tTransacArr.length > 0) {
-                const ts = tTransacArr.pop();
-                SQLQUERY[ts.name][ts.action].run(ts.data);
-            }
-        })();
+        SQL_T_DEFAULT();
     }
     console.timeEnd("wTransac");
 
@@ -281,6 +306,14 @@ Events.on("start", async() => {
     db.function("uuid", () => uuidv4());
     db.function("now", () => Date.now());
 
+    SQL_T_DEFAULT = db.transaction(() => {
+        const tTransacArr = wTransac.splice(0, wTransac.length);
+        while (tTransacArr.length > 0) {
+            const ts = tTransacArr.pop();
+            SQLQUERY[ts.name][ts.action].run(ts.data);
+        }
+    });
+
     // Prepare Available SQLQuery
     for (const groupName of Object.values(SQLQUERY)) {
         for (const queryName of Object.keys(groupName)) {
@@ -305,7 +338,7 @@ Events.on("start", async() => {
     setImmediate(() => Events.ready());
     await Events.once("ready");
 
-    interval = setDriftlessInterval(populateMetricsInterval, 5000);
+    interval = setDriftlessInterval(populateMetricsInterval, POPULATE_INTERVAL_MS);
 });
 
 // Addon "Stop" event listener

@@ -43,7 +43,14 @@ function assertMIC(mic) {
     }
 }
 
+function assertAlarm(alarm) {
+    if (!is.plainObject(alarm)) {
+        throw new TypeError("alarm should be a plainObject!");
+    }
+}
+
 module.exports = {
     assertEntity,
-    assertMIC
+    assertMIC,
+    assertAlarm
 };
