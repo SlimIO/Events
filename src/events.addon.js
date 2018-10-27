@@ -8,10 +8,10 @@ const Addon = require("@slimio/addon");
 const sqlite = require("better-sqlite3");
 const { createDirectory } = require("@slimio/utils");
 const uuidv4 = require("uuid/v4");
-const { setDriftlessInterval, clearDriftless } = require("driftless");
+const timer = require("@slimio/timer");
 
 // Require Internal Dependencies
-const { assertEntity, assertMIC, assertAlarm } = require("./asserts");
+const { assertEntity, assertMIC, assertAlarm, assertCorrelateID } = require("./asserts");
 const QueueMap = require("./queue");
 
 // CONSTANTS
@@ -33,11 +33,11 @@ let SQL_T_DEFAULT;
  */
 
 /**
- * @const wTransac
+ * @const QueryTransac
  * @desc Transaction table that contains all SQL query actions
  * @type {Transaction[]}
  */
-const wTransac = [];
+const QueryTransac = [];
 
 // Prepared stmt of SQL Query
 const SQLQUERY = {
@@ -52,6 +52,11 @@ const SQLQUERY = {
     },
     mic: {
         update: "UPDATE metric_identity_card SET description=? AND sample_interval=? WHERE id=?"
+    },
+    alarms: {
+        select: "SELECT * FROM alarms WHERE correlate_key=? AND entity_id=?",
+        insert: "INSERT INTO alarms (uuid, message, severity, correlate_key, entity_id) VALUES(uuid(), ?, ?, ?, ?)",
+        update: "UPDATE alarms SET message=? AND severity=? AND occurence=? AND updatedAt=now() WHERE id=?"
     }
 };
 
@@ -87,11 +92,11 @@ async function declareEntityDescriptor(entityId, key, value) {
 
     if (typeof row !== "undefined") {
         if (value !== row.value) {
-            wTransac.push({ action: "update", name: "descriptor", data: [row.value, entityId, key] });
+            QueryTransac.push({ action: "update", name: "descriptor", data: [row.value, entityId, key] });
         }
     }
     else {
-        wTransac.push({ action: "insert", name: "descriptor", data: [entityId, key, value] });
+        QueryTransac.push({ action: "insert", name: "descriptor", data: [entityId, key, value] });
     }
 }
 
@@ -117,7 +122,7 @@ async function declareEntity(entity) {
 
     if (typeof row !== "undefined") {
         if (description !== row.description) {
-            wTransac.push({ action: "update", name: "entity", data: [description, row.id] });
+            QueryTransac.push({ action: "update", name: "entity", data: [description, row.id] });
         }
 
         setImmediate(() => {
@@ -159,7 +164,7 @@ async function removeEntity(entityId) {
         throw new TypeError("entityId should be typeof number");
     }
 
-    wTransac.push({ action: "delete", name: "entity", data: [entityId] });
+    QueryTransac.push({ action: "delete", name: "entity", data: [entityId] });
 }
 
 /**
@@ -179,7 +184,7 @@ async function declareMetricIdentity(mic) {
     ).get([name, entityId]);
     if (typeof row !== "undefined") {
         if (row.description !== desc || row.interval !== interval) {
-            wTransac.push({ action: "update", name: "mic", data: [desc, interval, row.id] });
+            QueryTransac.push({ action: "update", name: "mic", data: [desc, interval, row.id] });
         }
 
         return row.id;
@@ -232,16 +237,40 @@ async function publishMetric(micId, value, harvestedAt = Date.now()) {
 async function createAlarm(alarm) {
     dbShouldBeOpen();
     assertAlarm(alarm);
+
+    const { message, severity, correlateKey, entityId } = alarm;
+    const row = SQLQUERY.alarms.select.get(correlateKey, entityId);
+
+    if (typeof row === "undefined") {
+        QueryTransac.push({ action: "insert", name: "alarms", data: [message, severity, correlateKey, entityId] });
+    }
+    else {
+        QueryTransac.push({ action: "update", name: "alarms", data: [message, severity, row.occurence + 1, row.id] });
+    }
 }
 
 /**
  * @async
  * @function createAlarm
  * @desc Get all or one alarms
+ * @param {String=} cid Alarm Correlate ID
  * @returns {Promise<void>}
  */
-async function getAlarms() {
+async function getAlarms(cid) {
     dbShouldBeOpen();
+    if (typeof cid === "string") {
+        assertCorrelateID(cid);
+        const [entityId, correlateKey] = cid.split("#");
+
+        const alarm = SQLQUERY.alarms.select.get(correlateKey, entityId);
+        if (typeof alarm === "undefined") {
+            throw new Error(`Unable to found any alarm with CID ${cid}`);
+        }
+
+        return alarm;
+    }
+
+    return db.all("SELECT * FROM alarms").run();
 }
 
 /**
@@ -263,11 +292,11 @@ async function populateMetricsInterval() {
     console.log("Publisher interval triggered!");
 
     // Handle waiting transactions!
-    console.time("wTransac");
-    if (wTransac.length > 0) {
+    console.time("QueryTransac");
+    if (QueryTransac.length > 0) {
         SQL_T_DEFAULT();
     }
-    console.timeEnd("wTransac");
+    console.timeEnd("QueryTransac");
 
     // Handle Metrics DBs transactions
     console.time("metrics_transaction");
@@ -306,20 +335,21 @@ Events.on("start", async() => {
     db.function("uuid", () => uuidv4());
     db.function("now", () => Date.now());
 
-    SQL_T_DEFAULT = db.transaction(() => {
-        const tTransacArr = wTransac.splice(0, wTransac.length);
-        while (tTransacArr.length > 0) {
-            const ts = tTransacArr.pop();
-            SQLQUERY[ts.name][ts.action].run(ts.data);
-        }
-    });
-
     // Prepare Available SQLQuery
     for (const groupName of Object.values(SQLQUERY)) {
         for (const queryName of Object.keys(groupName)) {
             groupName[queryName] = db.prepare(groupName[queryName]);
         }
     }
+
+    // Create lazy SQL-Transaction for transactions tables
+    SQL_T_DEFAULT = db.transaction(() => {
+        const tTransacArr = QueryTransac.splice(0, QueryTransac.length);
+        while (tTransacArr.length > 0) {
+            const ts = tTransacArr.pop();
+            SQLQUERY[ts.name][ts.action].run(ts.data);
+        }
+    });
 
     console.log("[EVENTS] Declare root entity!");
     // Declare root Entity!
@@ -338,15 +368,12 @@ Events.on("start", async() => {
     setImmediate(() => Events.ready());
     await Events.once("ready");
 
-    interval = setDriftlessInterval(populateMetricsInterval, POPULATE_INTERVAL_MS);
+    interval = timer.setInterval(populateMetricsInterval, POPULATE_INTERVAL_MS);
 });
 
 // Addon "Stop" event listener
 Events.on("stop", () => {
-    if (interval !== null) {
-        clearDriftless(interval);
-        interval = null;
-    }
+    timer.clearInterval(interval);
     db.close();
 });
 

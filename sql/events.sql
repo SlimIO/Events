@@ -33,6 +33,13 @@ CREATE TABLE IF NOT EXISTS "metric_identity_card" (
     CONSTRAINT fk_entity_id FOREIGN KEY("entity_id") REFERENCES entity("id") ON DELETE CASCADE
 );
 
+CREATE TABLE IF NOT EXISTS "events" (
+    "type" VARCHAR(40) NOT NULL,
+    "name" VARCHAR(40) NOT NULL,
+    "data" VARCHAR(255),
+    "createdAt" DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS "alarms" (
     "id" INTEGER PRIMARY KEY NOT NULL,
     "uuid" CHAR(36) NOT NULL,
@@ -41,7 +48,7 @@ CREATE TABLE IF NOT EXISTS "alarms" (
     "createdAt" DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     "updatedAt" DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
     "occurence" UNSIGNED MEDIUMINT DEFAULT 0 NOT NULL,
-    "correlate_key" VARCHAR(10) NOT NULL,
+    "correlate_key" VARCHAR(14) NOT NULL,
     "entity_id" INTEGER NOT NULL,
     CONSTRAINT fk_entity_id FOREIGN KEY("entity_id") REFERENCES entity("id") ON DELETE CASCADE
 );

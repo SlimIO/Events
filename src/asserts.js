@@ -47,10 +47,29 @@ function assertAlarm(alarm) {
     if (!is.plainObject(alarm)) {
         throw new TypeError("alarm should be a plainObject!");
     }
+    if (!is.string(alarm.message)) {
+        throw new TypeError("alarm.message property should be typeof string");
+    }
+    if (!is.number(alarm.severity)) {
+        throw new TypeError("alarm.severity property should be typeof number");
+    }
+    if (!is.number(alarm.entityId)) {
+        throw new TypeError("alarm.entityId property should be typeof number");
+    }
+    if (!is.string(alarm.correlateKey)) {
+        throw new TypeError("alarm.correlateKey property should be typeof string");
+    }
+}
+
+function assertCorrelateID(CID) {
+    if (!/^[0-9]{1,8}#[a-z_]{1,14}$/.test(CID)) {
+        throw new Error("Invalid CorrelateID! A CID should respect the following Regex: ^[0-9]{1,8}#[a-z_]{1,14}$");
+    }
 }
 
 module.exports = {
     assertEntity,
     assertMIC,
-    assertAlarm
+    assertAlarm,
+    assertCorrelateID
 };
