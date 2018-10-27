@@ -270,6 +270,18 @@ async function removeAlarm(cid) {
     QueryTransac.push({ action: "delete", name: "alarms", data: [correlateKey, entityId] });
 }
 
+async function register(eventType)  {
+
+}
+
+async function subscribe(eventType) {
+
+}
+
+async function publish(eventType, eventName, data) {
+
+}
+
 /**
  * @function populateMetricsInterval
  * @desc Metrics populate interval
@@ -363,6 +375,11 @@ Events.on("stop", () => {
     timer.clearInterval(interval);
     db.close();
 });
+
+// Events callback(s)
+Events.registerCallback("publish", publish);
+Events.registerCallback("register_type", register);
+Events.registerCallback("subscribe", subscribe);
 
 // Register metric callback(s)
 Events.registerCallback("declare_entity", declareEntity);
