@@ -40,25 +40,7 @@ let SQL_T_DEFAULT;
 const QueryTransac = [];
 
 // Prepared stmt of SQL Query
-const SQLQUERY = {
-    descriptor: {
-        select: "SELECT value FROM entity_descriptor WHERE entity_id=? AND key=?",
-        update: "UPDATE entity_descriptor SET value=? AND updatedAt=now() WHERE entity_id=? AND key=?",
-        insert: "INSERT INTO entity_descriptor (entity_id, key, value) VALUES (?, ?, ?)"
-    },
-    entity: {
-        update: "UPDATE entity SET description=? WHERE id=?",
-        delete: "DELETE FROM entity WHERE id=?"
-    },
-    mic: {
-        update: "UPDATE metric_identity_card SET description=? AND sample_interval=? WHERE id=?"
-    },
-    alarms: {
-        select: "SELECT * FROM alarms WHERE correlate_key=? AND entity_id=?",
-        insert: "INSERT INTO alarms (uuid, message, severity, correlate_key, entity_id) VALUES(uuid(), ?, ?, ?, ?)",
-        update: "UPDATE alarms SET message=? AND severity=? AND occurence=? AND updatedAt=now() WHERE id=?"
-    }
-};
+const SQLQUERY = require("./sqlquery.json");
 
 // QUEUES
 const Q_METRICS = new QueueMap();
@@ -275,12 +257,17 @@ async function getAlarms(cid) {
 
 /**
  * @async
- * @function createAlarm
- * @desc Remove all or one alarms
+ * @function removeAlarm
+ * @desc Remove one alarm
+ * @param {!String} cid Alarm Correlate ID
  * @returns {Promise<void>}
  */
-async function removeAlarms() {
+async function removeAlarm(cid) {
     dbShouldBeOpen();
+    assertCorrelateID(cid);
+
+    const [entityId, correlateKey] = cid.split("#");
+    QueryTransac.push({ action: "delete", name: "alarms", data: [correlateKey, entityId] });
 }
 
 /**
@@ -317,7 +304,7 @@ async function populateMetricsInterval() {
             for (const metric of metrics) {
                 stmt.run(metric);
             }
-        })();
+        })(metrics);
         console.timeEnd(`run_transact_${id}`);
         mDB.close();
     }
@@ -387,7 +374,7 @@ Events.registerCallback("publish_metric", publishMetric);
 // Register alarms callback(s)
 Events.registerCallback("create_alarm", createAlarm);
 Events.registerCallback("get_alarms", getAlarms);
-Events.registerCallback("remove_alarms", removeAlarms);
+Events.registerCallback("remove_alarm", removeAlarm);
 
 // Export "Events" addon for Core
 module.exports = Events;
