@@ -1,6 +1,5 @@
 {
     "descriptor": {
-        "select": "SELECT value FROM entity_descriptor WHERE entity_id=? AND key=?",
         "update": "UPDATE entity_descriptor SET value=? AND updatedAt=now() WHERE entity_id=? AND key=?",
         "insert": "INSERT INTO entity_descriptor (entity_id, key, value) VALUES (?, ?, ?)"
     },
@@ -12,7 +11,6 @@
         "update": "UPDATE metric_identity_card SET description=? AND sample_interval=? WHERE id=?"
     },
     "alarms": {
-        "select": "SELECT * FROM alarms WHERE correlate_key=? AND entity_id=?",
         "insert": "INSERT INTO alarms (uuid, message, severity, correlate_key, entity_id) VALUES(uuid(), ?, ?, ?, ?)",
         "update": "UPDATE alarms SET message=? AND severity=? AND occurence=? AND updatedAt=now() WHERE id=?",
         "delete": "DELETE FROM alarms WHERE correlate_key=? AND entity_id=?"
