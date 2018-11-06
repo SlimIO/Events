@@ -19,10 +19,12 @@ const ROOT = join(__dirname, "..");
 const DB_DIR = join(ROOT, "db");
 const METRICS_DIR = join(DB_DIR, "metrics");
 const POPULATE_INTERVAL_MS = 1000;
+const SANITY_INTERVAL_MS = 60000;
 
 // GLOBALS
 let db = null;
 let interval = null;
+let sanity = null;
 
 /**
  * @const QueryTransac
@@ -34,8 +36,14 @@ const QueryTransac = [];
 // Prepared stmt of SQL Query
 const SQLQUERY = require("./sqlquery.json");
 
-// QUEUES
+// QUEUES & MAPS
 const Q_METRICS = new QueueMap();
+
+/** @type {Map<String, Number>} */
+const AVAILABLE_TYPES = new Map();
+
+/** @type {Map<String, Set<String>>} */
+const SUBSCRIBERS = new Map();
 
 /**
  * @func dbShouldBeOpen
@@ -274,6 +282,84 @@ async function removeAlarm(header, cid) {
 }
 
 /**
+ * @function registerEventType
+ * @desc Register event type
+ * @param {*} header Callback Header
+ * @param {!String} name event name
+ * @returns {Promise<Number>}
+ */
+async function registerEventType(header, name) {
+    dbShouldBeOpen();
+    if (typeof name !== "string") {
+        throw new TypeError("name should be a string");
+    }
+
+    const type = await db.get("SELECT id,name FROM events_type WHERE name=?", name);
+    if (typeof type === "undefined") {
+        const ret = await db.run("INSERT INTO events_type (name) VALUES(?)", name);
+        if (!AVAILABLE_TYPES.has(name)) {
+            AVAILABLE_TYPES.set(name, ret.lastID);
+        }
+
+        return ret.lastID;
+    }
+
+    return type.id;
+}
+
+/**
+ * @function publish
+ * @desc Publish a new event
+ * @param {*} header Callback Header
+ * @param {!String} name event name
+ * @param {String=} data event data
+ * @returns {Promise<void>}
+ */
+async function publish(header, name, data = "") {
+    dbShouldBeOpen();
+    if (!AVAILABLE_TYPES.has(name)) {
+        throw new Error(`Unknown event with name ${name}`);
+    }
+    if (typeof data !== "string") {
+        throw new Error("data should be typeof string");
+    }
+    const id = AVAILABLE_TYPES.get(name);
+
+    await db.run("INSERT INTO events (type_id, name, data) VALUES(?, ?, ?)", id, name, data);
+
+    // Send data to subscribers!
+    if (SUBSCRIBERS.has(name)) {
+        const addons = [...SUBSCRIBERS.get(name)];
+        Promise.all(addons.map((addonName) => {
+            return Events.sendMessage(`${addonName}.event`, {
+                args: [name, data],
+                noReturn: true
+            });
+        }));
+    }
+}
+
+/**
+ * @function subscribe
+ * @desc Subscribe to event
+ * @param {*} header Callback Header
+ * @param {!String} subjectName Subject name
+ * @returns {Promise<void>}
+ */
+async function subscribe(header, subjectName) {
+    if (!AVAILABLE_TYPES.has(subjectName)) {
+        throw new Error(`Unknown Event subject name ${subjectName}`);
+    }
+
+    if (SUBSCRIBERS.has(subjectName)) {
+        SUBSCRIBERS.get(subjectName).add(header.from);
+    }
+    else {
+        SUBSCRIBERS.set(subjectName, new Set([header.from]));
+    }
+}
+
+/**
  * @function populateMetricsInterval
  * @desc Metrics populate interval
  * @returns {Promise<void>}
@@ -314,6 +400,15 @@ async function populateMetricsInterval() {
     console.timeEnd("metrics_transaction");
 }
 
+/**
+ * @function sanityInterval
+ * @desc Events sanity interval
+ * @returns {Promise<void>}
+ */
+async function sanityInterval() {
+    console.log("HEALTH SANITY INTERVAL!");
+}
+
 // Addon "Start" event listener
 Events.on("start", async() => {
     console.log("[EVENTS] Start event triggered!");
@@ -322,6 +417,10 @@ Events.on("start", async() => {
 
     db = await sqlite.open(join(DB_DIR, "events.db"));
     await db.exec(await readFile(join(ROOT, "sql", "events.sql"), "utf-8"));
+    const types = await db.all("SELECT id, name from events_type");
+    for (const type of types) {
+        AVAILABLE_TYPES.set(type.name, type.id);
+    }
 
     // Declare root Entity!
     declareEntity(void 0, {
@@ -340,13 +439,20 @@ Events.on("start", async() => {
     await Events.once("ready");
 
     interval = timer.setInterval(populateMetricsInterval, POPULATE_INTERVAL_MS);
+    sanity = timer.setInterval(sanityInterval, SANITY_INTERVAL_MS);
 });
 
 // Addon "Stop" event listener
 Events.on("stop", () => {
     timer.clearInterval(interval);
+    timer.clearInterval(sanity);
     db.close();
 });
+
+// Register event callback(s)
+Events.registerCallback("register_event_type", registerEventType);
+Events.registerCallback("publish", publish);
+Events.registerCallback("subscribe", subscribe);
 
 // Register metric callback(s)
 Events.registerCallback("declare_entity", declareEntity);
