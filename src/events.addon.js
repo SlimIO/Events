@@ -436,8 +436,9 @@ Events.on("start", async() => {
         }
     });
 
-    setImmediate(() => Events.ready());
-    await Events.once("ready");
+    // Force Addon isReady by himself
+    await publish(void 0, ["Addon", "ready", "events"]);
+    Events.isReady = true;
 
     interval = timer.setInterval(populateMetricsInterval, POPULATE_INTERVAL_MS);
     sanity = timer.setInterval(sanityInterval, SANITY_INTERVAL_MS);
