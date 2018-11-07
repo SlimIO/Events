@@ -311,28 +311,30 @@ async function registerEventType(header, name) {
  * @function publish
  * @desc Publish a new event
  * @param {*} header Callback Header
- * @param {!String} name event name
- * @param {String=} data event data
+ * @param {!Array} event event
  * @returns {Promise<void>}
  */
-async function publish(header, name, data = "") {
+async function publish(header, [type, name, data = ""]) {
     dbShouldBeOpen();
-    if (!AVAILABLE_TYPES.has(name)) {
-        throw new Error(`Unknown event with name ${name}`);
+    if (!AVAILABLE_TYPES.has(type)) {
+        throw new Error(`Unknown event with typeName ${type}`);
+    }
+    if (typeof name !== "string") {
+        throw new Error("name should be typeof string");
     }
     if (typeof data !== "string") {
         throw new Error("data should be typeof string");
     }
-    const id = AVAILABLE_TYPES.get(name);
+    const id = AVAILABLE_TYPES.get(type);
 
     await db.run("INSERT INTO events (type_id, name, data) VALUES(?, ?, ?)", id, name, data);
 
     // Send data to subscribers!
-    if (SUBSCRIBERS.has(name)) {
-        const addons = [...SUBSCRIBERS.get(name)];
+    if (SUBSCRIBERS.has(`${type}.${name}`)) {
+        const addons = [...SUBSCRIBERS.get(`${type}.${name}`)];
         Promise.all(addons.map((addonName) => {
             return Events.sendMessage(`${addonName}.event`, {
-                args: [name, data],
+                args: [type, name, data],
                 noReturn: true
             });
         }));
