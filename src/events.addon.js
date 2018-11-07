@@ -315,7 +315,6 @@ async function registerEventType(header, name) {
  * @returns {Promise<void>}
  */
 async function publish(header, [type, name, data = ""]) {
-    dbShouldBeOpen();
     if (!AVAILABLE_TYPES.has(type)) {
         throw new Error(`Unknown event with typeName ${type}`);
     }
@@ -327,7 +326,7 @@ async function publish(header, [type, name, data = ""]) {
     }
     const id = AVAILABLE_TYPES.get(type);
 
-    await db.run("INSERT INTO events (type_id, name, data) VALUES(?, ?, ?)", id, name, data);
+    QueryTransac.push({ action: "insert", name: "events", data: [id, name, data] });
 
     // Send data to subscribers!
     if (SUBSCRIBERS.has(`${type}.${name}`)) {
