@@ -27,7 +27,7 @@
     "nyc": "^13.1.0"
   },
   "dependencies": {
-    "@slimio/addon": "^0.10.0",
+    "@slimio/addon": "^0.13.0",
     "@slimio/is": "^1.2.0",
     "@slimio/timer": "^1.0.0",
     "@slimio/utils": "^0.5.0",
