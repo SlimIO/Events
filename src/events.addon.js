@@ -40,7 +40,11 @@ const SQLQUERY = require("./sqlquery.json");
 const Q_METRICS = new QueueMap();
 
 /** @type {Map<String, Number>} */
-const AVAILABLE_TYPES = new Map();
+const AVAILABLE_TYPES = new Map([
+    ["Addon", 1],
+    ["Alarm", 2],
+    ["Metric", 3]
+]);
 
 /** @type {Map<String, Set<String>>} */
 const SUBSCRIBERS = new Map();
@@ -311,28 +315,30 @@ async function registerEventType(header, name) {
  * @function publish
  * @desc Publish a new event
  * @param {*} header Callback Header
- * @param {!String} name event name
- * @param {String=} data event data
+ * @param {!Array} event event
  * @returns {Promise<void>}
  */
-async function publish(header, name, data = "") {
-    dbShouldBeOpen();
-    if (!AVAILABLE_TYPES.has(name)) {
-        throw new Error(`Unknown event with name ${name}`);
+async function publish(header, [type, name, data = ""]) {
+    if (!AVAILABLE_TYPES.has(type)) {
+        throw new Error(`Unknown event with typeName ${type}`);
+    }
+    if (typeof name !== "string") {
+        throw new Error("name should be typeof string");
     }
     if (typeof data !== "string") {
         throw new Error("data should be typeof string");
     }
-    const id = AVAILABLE_TYPES.get(name);
+    const id = AVAILABLE_TYPES.get(type);
 
-    await db.run("INSERT INTO events (type_id, name, data) VALUES(?, ?, ?)", id, name, data);
+    QueryTransac.push({ action: "insert", name: "events", data: [id, name, data] });
 
     // Send data to subscribers!
-    if (SUBSCRIBERS.has(name)) {
-        const addons = [...SUBSCRIBERS.get(name)];
+    const subject = `${type}.${name}`;
+    if (SUBSCRIBERS.has(subject)) {
+        const addons = [...SUBSCRIBERS.get(subject)];
         Promise.all(addons.map((addonName) => {
             return Events.sendMessage(`${addonName}.event`, {
-                args: [name, data],
+                args: [subject, data],
                 noReturn: true
             });
         }));
@@ -347,10 +353,6 @@ async function publish(header, name, data = "") {
  * @returns {Promise<void>}
  */
 async function subscribe(header, subjectName) {
-    if (!AVAILABLE_TYPES.has(subjectName)) {
-        throw new Error(`Unknown Event subject name ${subjectName}`);
-    }
-
     if (SUBSCRIBERS.has(subjectName)) {
         SUBSCRIBERS.get(subjectName).add(header.from);
     }
@@ -417,6 +419,10 @@ Events.on("start", async() => {
 
     db = await sqlite.open(join(DB_DIR, "events.db"));
     await db.exec(await readFile(join(ROOT, "sql", "events.sql"), "utf-8"));
+    await registerEventType(void 0, "Addon");
+    await registerEventType(void 0, "Metric");
+    await registerEventType(void 0, "Alarm");
+
     const types = await db.all("SELECT id, name from events_type");
     for (const type of types) {
         AVAILABLE_TYPES.set(type.name, type.id);
@@ -435,8 +441,9 @@ Events.on("start", async() => {
         }
     });
 
-    setImmediate(() => Events.ready());
-    await Events.once("ready");
+    // Force Addon isReady by himself
+    await publish(void 0, ["Addon", "ready", "events"]);
+    Events.isReady = true;
 
     interval = timer.setInterval(populateMetricsInterval, POPULATE_INTERVAL_MS);
     sanity = timer.setInterval(sanityInterval, SANITY_INTERVAL_MS);
@@ -444,6 +451,7 @@ Events.on("start", async() => {
 
 // Addon "Stop" event listener
 Events.on("stop", () => {
+    Events.isReady = false;
     timer.clearInterval(interval);
     timer.clearInterval(sanity);
     db.close();

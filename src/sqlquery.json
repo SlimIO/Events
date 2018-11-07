@@ -14,5 +14,8 @@
         "insert": "INSERT INTO alarms (uuid, message, severity, correlate_key, entity_id) VALUES(uuid(), ?, ?, ?, ?)",
         "update": "UPDATE alarms SET message=? AND severity=? AND occurence=? AND updatedAt=DATETIME('now') WHERE id=?",
         "delete": "DELETE FROM alarms WHERE correlate_key=? AND entity_id=?"
+    },
+    "events": {
+        "insert": "INSERT INTO events (type_id, name, data) VALUES(?, ?, ?)"
     }
 }
