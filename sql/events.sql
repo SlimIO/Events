@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS "events_type" (
     "id" INTEGER PRIMARY KEY NOT NULL,
     "name" VARCHAR(40) NOT NULL
 );
-INSERT INTO events_type (name) VALUES ("addon"), ("alarm"), ("metric");
+INSERT INTO events_type (name) VALUES ("Addon"), ("Alarm"), ("Metric");
 
 CREATE TABLE IF NOT EXISTS "events" (
     "type_id" INTEGER NOT NULL,
