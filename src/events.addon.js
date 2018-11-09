@@ -4,11 +4,12 @@ const { readFile } = require("fs").promises;
 const os = require("os");
 
 // Require Third-Party Dependencies
-const Addon = require("@slimio/addon");
 const sqlite = require("sqlite");
 const uuid = require("uuid/v4");
+const Addon = require("@slimio/addon");
 const { createDirectory } = require("@slimio/utils");
 const timer = require("@slimio/timer");
+const is = require("@slimio/is");
 
 // Require Internal Dependencies
 const { assertEntity, assertMIC, assertAlarm, assertCorrelateID } = require("./asserts");
@@ -89,6 +90,29 @@ async function declareEntityDescriptor(header, entityId, [key, value]) {
 
 /**
  * @async
+ * @function getDescriptors
+ * @desc Get one or all descriptors of a given entity
+ * @param {*} header Callback Header
+ * @param {!Number} entityId entityId
+ * @param {String=} key descriptor key
+ * @returns {Promise<void>}
+ */
+async function getDescriptors(header, entityId, key) {
+    dbShouldBeOpen();
+    if (typeof entityId !== "number") {
+        throw new TypeError("entityId should be typeof number");
+    }
+
+    if (typeof key === "string") {
+        return await db.get(
+            "SELECT * FROM entity_descriptor WHERE entityId=? AND key=?", entityId, key);
+    }
+
+    return await db.all("SELECT * FROM entity_descriptor WHERE entityId=?", entityId);
+}
+
+/**
+ * @async
  * @function declareEntity
  * @desc Declare a new entity
  * @param {*} header Callback Header
@@ -138,6 +162,38 @@ async function declareEntity(header, entity) {
     });
 
     return lastID;
+}
+
+/**
+ * @async
+ * @function searchEntities
+ * @desc Search one or many entities by matching search options
+ * @param {*} header Callback Header
+ * @param {Object} searchOptions search Options
+ * @returns {Promise<Number>}
+ */
+async function searchEntities(header, searchOptions) {
+    dbShouldBeOpen();
+    if (typeof entityName !== "string") {
+        throw new TypeError("entityName should be typeof string");
+    }
+    if (!is.plainObject(searchOptions)) {
+        throw new TypeError("searchOptions should be a plainObject!");
+    }
+    const { name = null, pattern = null, createdAt = Date.now() } = searchOptions;
+
+    if (name !== null) {
+        return await db.get("SELECT * FROM entity WHERE name=?", name);
+    }
+
+    const rawResult = await db.all("SELECT * FROM entity WHERE createdAt < ?", createdAt);
+    if (typeof pattern === "string") {
+        const regex = new RegExp(pattern, "g");
+
+        return rawResult.filter((row) => regex.test(row.name));
+    }
+
+    return rawResult;
 }
 
 /**
@@ -376,6 +432,9 @@ async function populateMetricsInterval() {
         const tTransacArr = QueryTransac.splice(0, QueryTransac.length);
         while (tTransacArr.length > 0) {
             const ts = tTransacArr.pop();
+            if (ts.name === "alarm" && ts.action === "insert") {
+                Events.executeCallback("publish", void 0, "Alarm", "open", `${ts.data[3]}#${ts.data[2]}`);
+            }
             pTransac.push(db.run(SQLQUERY[ts.name][ts.action], ...ts.data));
         }
 
@@ -408,7 +467,18 @@ async function populateMetricsInterval() {
  * @returns {Promise<void>}
  */
 async function sanityInterval() {
-    console.log("HEALTH SANITY INTERVAL!");
+    console.log("[Events] Health interval triggered");
+
+    const evtTypes = await db.all("SELECT name FROM events_type");
+    const typesName = evtTypes.map((row) => row.name);
+
+    for (const key of SUBSCRIBERS.keys()) {
+        for (const name of typesName) {
+            if (!key.includes(name)) {
+                SUBSCRIBERS.delete(key);
+            }
+        }
+    }
 }
 
 // Addon "Start" event listener
@@ -465,6 +535,8 @@ Events.registerCallback("subscribe", subscribe);
 // Register metric callback(s)
 Events.registerCallback("declare_entity", declareEntity);
 Events.registerCallback("declare_entity_descriptor", declareEntityDescriptor);
+Events.registerCallback("get_descriptors", getDescriptors);
+Events.registerCallback("search_entities", searchEntities);
 Events.registerCallback("remove_entity", removeEntity);
 Events.registerCallback("declare_mic", declareMetricIdentity);
 Events.registerCallback("publish_metric", publishMetric);
