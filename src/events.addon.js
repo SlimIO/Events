@@ -18,7 +18,7 @@ const QueueMap = require("./queues");
 const ROOT = join(__dirname, "..");
 const DB_DIR = join(ROOT, "db");
 const METRICS_DIR = join(DB_DIR, "metrics");
-const POPULATE_INTERVAL_MS = 1000;
+const POPULATE_INTERVAL_MS = 5000;
 const SANITY_INTERVAL_MS = 60000;
 
 // GLOBALS
@@ -215,7 +215,7 @@ async function publishMetric(header, micId, [value, harvestedAt = Date.now()]) {
         throw new TypeError("metric value should be typeof number!");
     }
 
-    // console.log(`Enqueue new metric for mic ${micId} with value ${value}`);
+    console.log(`Enqueue new metric for mic ${micId} with value ${value}`);
     Q_METRICS.enqueue(micId, [value, harvestedAt]);
 }
 
@@ -230,17 +230,21 @@ async function publishMetric(header, micId, [value, harvestedAt = Date.now()]) {
 async function createAlarm(header, alarm) {
     dbShouldBeOpen();
     assertAlarm(alarm);
+    console.log(alarm);
     const { message, severity, correlateKey, entityId } = alarm;
 
     const row = await db.get(
         "SELECT * FROM alarms WHERE correlate_key=? AND entity_id=?", correlateKey, entityId);
 
     if (typeof row === "undefined") {
-        QueryTransac.push({ action: "insert", name: "alarms", data: [message, severity, correlateKey, entityId] });
+        QueryTransac.push({ action: "insert", name: "alarms", data: [uuid(), message, severity, correlateKey, entityId] });
     }
     else {
+        console.log(row.id);
         QueryTransac.push({ action: "update", name: "alarms", data: [message, severity, row.occurence + 1, row.id] });
     }
+    console.log(`Alarm created : ${entityId}${correlateKey}`);
+    console.log(`Occurence : ${row.occurence + 1}`);
 }
 
 /**
@@ -376,6 +380,7 @@ async function populateMetricsInterval() {
         const tTransacArr = QueryTransac.splice(0, QueryTransac.length);
         while (tTransacArr.length > 0) {
             const ts = tTransacArr.pop();
+            console.log(SQLQUERY[ts.name][ts.action], ...ts.data),
             pTransac.push(db.run(SQLQUERY[ts.name][ts.action], ...ts.data));
         }
 
@@ -443,7 +448,8 @@ Events.on("start", async() => {
 
     // Force Addon isReady by himself
     await publish(void 0, ["Addon", "ready", "events"]);
-    Events.isReady = true;
+    // Events.isReady = true;
+    Events.ready();
 
     interval = timer.setInterval(populateMetricsInterval, POPULATE_INTERVAL_MS);
     sanity = timer.setInterval(sanityInterval, SANITY_INTERVAL_MS);

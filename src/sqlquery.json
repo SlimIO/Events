@@ -11,8 +11,8 @@
         "update": "UPDATE metric_identity_card SET description=? AND sample_interval=? WHERE id=?"
     },
     "alarms": {
-        "insert": "INSERT INTO alarms (uuid, message, severity, correlate_key, entity_id) VALUES(uuid(), ?, ?, ?, ?)",
-        "update": "UPDATE alarms SET message=? AND severity=? AND occurence=? AND updatedAt=DATETIME('now') WHERE id=?",
+        "insert": "INSERT INTO alarms (uuid, message, severity, correlate_key, entity_id) VALUES(?, ?, ?, ?, ?)",
+        "update": "UPDATE alarms SET message=?, severity=?, occurence=?, updatedAt=DATETIME('now') WHERE id=?",
         "delete": "DELETE FROM alarms WHERE correlate_key=? AND entity_id=?"
     },
     "events": {
