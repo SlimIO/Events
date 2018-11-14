@@ -286,15 +286,18 @@ async function publishMetric(header, micId, [value, harvestedAt = Date.now()]) {
 async function createAlarm(header, alarm) {
     dbShouldBeOpen();
     assertAlarm(alarm);
+    console.log(alarm);
     const { message, severity, correlateKey, entityId } = alarm;
 
     const row = await db.get(
         "SELECT * FROM alarms WHERE correlate_key=? AND entity_id=?", correlateKey, entityId);
 
     if (typeof row === "undefined") {
+        console.log("[EVENT] INSERT new Alarm");
         QueryTransac.push({ action: "insert", name: "alarms", data: [uuid(), message, severity, correlateKey, entityId] });
     }
     else {
+        console.log("[EVENT] UPDATE Alarm");
         QueryTransac.push({ action: "update", name: "alarms", data: [message, severity, row.occurence + 1, row.id] });
     }
 }
@@ -409,6 +412,7 @@ async function publish(header, [type, name, data = ""]) {
  * @returns {Promise<void>}
  */
 async function subscribe(header, subjectName) {
+    console.log(`[EVENT] subscribe : ${subjectName}`);
     if (SUBSCRIBERS.has(subjectName)) {
         SUBSCRIBERS.get(subjectName).add(header.from);
     }
@@ -432,8 +436,13 @@ async function populateMetricsInterval() {
         const tTransacArr = QueryTransac.splice(0, QueryTransac.length);
         while (tTransacArr.length > 0) {
             const ts = tTransacArr.pop();
-            if (ts.name === "alarm" && ts.action === "insert") {
-                Events.executeCallback("publish", void 0, "Alarm", "open", `${ts.data[3]}#${ts.data[2]}`);
+            if (ts.name === "alarms" && ts.action === "insert") {
+                console.log(`[EVENT] Alarms insert`);
+                Events.executeCallback("publish", void 0, ["Alarm", "open", `${ts.data[4]}#${ts.data[3]}`]);
+            }
+            if (ts.name === "alarms" && ts.action === "update") {
+                console.log(`[EVENT] Alarms update`);
+                Events.executeCallback("publish", void 0, ["Alarm", "update", `${ts.data[4]}#${ts.data[3]}`]);
             }
             pTransac.push(db.run(SQLQUERY[ts.name][ts.action], ...ts.data));
         }
