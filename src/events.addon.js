@@ -408,7 +408,7 @@ async function publish(header, [type, name, data = "", subs = []]) {
         const addons = [...SUBSCRIBERS.get(subject)];
         Promise.all(addons.map((addonName) => {
             return Events.sendMessage(`${addonName}.event`, {
-                args: [subject, ...subs],
+                args: [subject, subs],
                 noReturn: true
             });
         }));
