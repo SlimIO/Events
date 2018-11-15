@@ -286,7 +286,6 @@ async function publishMetric(header, micId, [value, harvestedAt = Date.now()]) {
 async function createAlarm(header, alarm) {
     dbShouldBeOpen();
     assertAlarm(alarm);
-    console.log(alarm);
     const { message, severity, correlateKey, entityId } = alarm;
 
     const row = await db.get(
@@ -294,11 +293,23 @@ async function createAlarm(header, alarm) {
 
     if (typeof row === "undefined") {
         console.log("[EVENT] INSERT new Alarm");
-        QueryTransac.push({ action: "insert", name: "alarms", data: [uuid(), message, severity, correlateKey, entityId] });
+        QueryTransac.push({
+            action: "insert",
+            name: "alarms",
+            data: [uuid(), message, severity, correlateKey, entityId],
+            publish: `${entityId}#${correlateKey}`,
+            subs: [`${entityId}#${correlateKey}`]
+        });
     }
     else {
         console.log("[EVENT] UPDATE Alarm");
-        QueryTransac.push({ action: "update", name: "alarms", data: [message, severity, row.occurence + 1, row.id] });
+        QueryTransac.push({
+            action: "update",
+            name: "alarms",
+            data: [message, severity, row.occurence + 1, row.id],
+            publish: `${entityId}#${correlateKey}`,
+            subs: [`${entityId}#${correlateKey}`, row.occurence + 1]
+        });
     }
 }
 
@@ -377,7 +388,7 @@ async function registerEventType(header, name) {
  * @param {!Array} event event
  * @returns {Promise<void>}
  */
-async function publish(header, [type, name, data = ""]) {
+async function publish(header, [type, name, data = "", subs = []]) {
     if (!AVAILABLE_TYPES.has(type)) {
         throw new Error(`Unknown event with typeName ${type}`);
     }
@@ -397,7 +408,7 @@ async function publish(header, [type, name, data = ""]) {
         const addons = [...SUBSCRIBERS.get(subject)];
         Promise.all(addons.map((addonName) => {
             return Events.sendMessage(`${addonName}.event`, {
-                args: [subject, data],
+                args: [subject, ...subs],
                 noReturn: true
             });
         }));
@@ -437,12 +448,12 @@ async function populateMetricsInterval() {
         while (tTransacArr.length > 0) {
             const ts = tTransacArr.pop();
             if (ts.name === "alarms" && ts.action === "insert") {
-                console.log(`[EVENT] Alarms insert`);
-                Events.executeCallback("publish", void 0, ["Alarm", "open", `${ts.data[4]}#${ts.data[3]}`]);
+                console.log("[EVENT] Alarms insert");
+                Events.executeCallback("publish", void 0, ["Alarm", "open", ts.publish, ts.subs]);
             }
             if (ts.name === "alarms" && ts.action === "update") {
-                console.log(`[EVENT] Alarms update`);
-                Events.executeCallback("publish", void 0, ["Alarm", "update", `${ts.data[4]}#${ts.data[3]}`]);
+                console.log("[EVENT] Alarms update");
+                Events.executeCallback("publish", void 0, ["Alarm", "update", ts.publish, ts.subs]);
             }
             pTransac.push(db.run(SQLQUERY[ts.name][ts.action], ...ts.data));
         }
