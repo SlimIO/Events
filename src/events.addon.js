@@ -327,7 +327,7 @@ async function getAlarms(header, cid) {
         assertCorrelateID(cid);
         const [entityId, correlateKey] = cid.split("#");
 
-        const alarm = db.get(
+        const alarm = await db.get(
             "SELECT * FROM alarms WHERE correlate_key=? AND entity_id=?", correlateKey, entityId);
         if (typeof alarm === "undefined") {
             throw new Error(`Unable to found any alarm with CID ${cid}`);
@@ -337,6 +337,35 @@ async function getAlarms(header, cid) {
     }
 
     return await db.all("SELECT * FROM alarms");
+}
+
+/**
+ * @async
+ * @function getAlarmsOccurence
+ * @desc Get all alarms occurence between 2 times
+ * @param {*} header Callback Header
+ * @param {String=} cid Alarm Correlate ID
+ * @param {Number=} time Occurence time in minute
+ * @param {Number=} severity Lower severity to check
+ * @returns {Promise<void>}
+ */
+async function getAlarmsOccurence(header, cid, { time, severity = 0 }) {
+    console.log(`[EVENT] getAlarmsOccurence of : ${cid}`);
+    dbShouldBeOpen();
+    assertCorrelateID(cid);
+    if (!is.number(time)) {
+        throw new TypeError("time property should be type of number");
+    }
+    const dateNow = Date.now() / 1000;
+    const startDate = dateNow - time * 60;
+
+    const alarms = await db.get(
+        "SELECT COUNT(*) AS result FROM events WHERE type_id=3 AND name=\"update\" AND data=? AND createdAt BETWEEN datetime(?, 'unixepoch') AND datetime(?, 'unixepoch')",
+        cid, startDate, dateNow
+    );
+    console.log(alarms);
+
+    return alarms.result;
 }
 
 /**
@@ -565,6 +594,7 @@ Events.registerCallback("publish_metric", publishMetric);
 // Register alarms callback(s)
 Events.registerCallback("create_alarm", createAlarm);
 Events.registerCallback("get_alarms", getAlarms);
+Events.registerCallback("get_alarms_occurence", getAlarmsOccurence);
 Events.registerCallback("remove_alarm", removeAlarm);
 
 // Export "Events" addon for Core
