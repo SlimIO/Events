@@ -97,16 +97,13 @@ async function getDescriptors(header, entityId, key) {
         throw new TypeError("entityId should be typeof number");
     }
 
+    // If key is a string, then only return one descriptor
     if (typeof key === "string") {
-        const descriptors = await db.get(
+        return await db.get(
             "SELECT * FROM entity_descriptor WHERE entityId=? AND key=?", entityId, key);
-
-        return descriptors;
     }
 
-    const descriptors = await db.all("SELECT * FROM entity_descriptor WHERE entityId=?", entityId);
-
-    return descriptors;
+    return await db.all("SELECT * FROM entity_descriptor WHERE entityId=?", entityId);
 }
 
 /**
@@ -122,6 +119,7 @@ async function declareEntity(header, entity) {
     assertEntity(entity);
     const { name, parent = 1, description = null, descriptors = {} } = entity;
 
+    /** @type {{id: Number, description: String}} */
     let row;
     if (parent === null) {
         row = await db.get("SELECT id, description FROM entity WHERE name=? AND parent IS NULL", name);
@@ -181,9 +179,7 @@ async function searchEntities(header, searchOptions) {
     const { name = null, pattern = null, createdAt = Date.now() } = searchOptions;
 
     if (name !== null) {
-        const result = await db.get("SELECT * FROM entity WHERE name=?", name);
-
-        return result;
+        return await db.get("SELECT * FROM entity WHERE name=?", name);
     }
 
     const rawResult = await db.all("SELECT * FROM entity WHERE createdAt < ?", createdAt);
@@ -226,9 +222,8 @@ async function declareMetricIdentity(header, mic) {
     assertMIC(mic);
     const { name, description: desc = "", unit, interval = 5, max = null, entityId } = mic;
 
-    const row = await db.get(
-        "SELECT id, description, sample_interval as interval FROM metric_identity_card WHERE name=? AND entity_id=?",
-        name, entityId);
+    const query = "SELECT id, description, sample_interval as interval FROM metric_identity_card WHERE name=? AND entity_id=?";
+    const row = await db.get(query, name, entityId);
 
     if (typeof row !== "undefined") {
         if (row.description !== desc || row.interval !== interval) {
@@ -306,7 +301,7 @@ async function createAlarm(header, alarm) {
 
 /**
  * @async
- * @function createAlarm
+ * @function getAlarms
  * @desc Get all or one alarms
  * @param {*} header Callback Header
  * @param {String=} cid Alarm Correlate ID
@@ -318,8 +313,7 @@ async function getAlarms(header, cid) {
         assertCorrelateID(cid);
         const [entityId, correlateKey] = cid.split("#");
 
-        const alarm = await db.get(
-            "SELECT * FROM alarms WHERE correlate_key=? AND entity_id=?", correlateKey, entityId);
+        const alarm = await db.get("SELECT * FROM alarms WHERE correlate_key=? AND entity_id=?", correlateKey, entityId);
         if (typeof alarm === "undefined") {
             throw new Error(`Unable to found any alarm with CID ${cid}`);
         }
@@ -350,7 +344,7 @@ async function getAlarmsOccurence(header, cid, { time, severity = 0 }) {
     const dateNow = Date.now() / 1000;
     const startDate = (dateNow - time) * 60;
 
-    const alarms = await db.get(
+    const alarms = await db.get( // eslint-disable-next-line
         "SELECT COUNT(*) AS result FROM events WHERE type_id=3 AND name=\"update\" AND data=? AND createdAt BETWEEN datetime(?, 'unixepoch') AND datetime(?, 'unixepoch')",
         cid, startDate, dateNow
     );
