@@ -1,6 +1,7 @@
 {
     "extends": "@slimio/eslint-config",
     "rules": {
+        "no-return-await": "off",
         "require-await": "off"
     }
 }
