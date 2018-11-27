@@ -557,7 +557,10 @@ Events.on("start", async() => {
     }
 
     // Create transact
-    transact = new TransactManager(db);
+    transact = new TransactManager(db, {
+        interval: POPULATE_INTERVAL_MS
+    });
+    await transact.loadSubjectsFromFile("./src/sqlquery.json");
 
     // Declare root Entity!
     declareEntity(void 0, {
