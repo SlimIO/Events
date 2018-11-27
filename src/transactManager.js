@@ -27,6 +27,7 @@ const TRANSACT = Symbol("TRANSACT");
  * @property {Actions} action
  * @property {Subject} subject
  * @property {Number} openAt Transaction Creation timestamp
+ * @property {any} attachData
  * @property {any[]} data
  */
 
@@ -81,12 +82,12 @@ class TransactManager extends EventEmitter {
             let tLen = qtArr.length;
             while (tLen--) {
                 const transactId = qtArr.shift();
-                const { subject, action, data, openAt } = this.transactions.get(transactId);
+                const { subject, action, data, attachData, openAt } = this.transactions.get(transactId);
 
                 const SQLQuery = this.subjects.get(subject)[action];
                 this.db.run(SQLQuery, ...data);
                 this.transactions.delete(transactId);
-                this.emit(`${subject}.${action}`, openAt, data);
+                this.emit(`${subject}.${action}`, openAt, data, attachData);
             }
         }, intervalMs);
     }
@@ -196,6 +197,27 @@ class TransactManager extends EventEmitter {
         });
 
         return transactId;
+    }
+
+    /**
+     * @version 0.1.0
+     *
+     * @method attachData
+     * @desc Attach a payload to a given transaction
+     * @memberof TransactManager#
+     * @param {!String} transactId transaction id
+     * @param {*} data custom data to attach to the transaction
+     * @returns {Boolean}
+     */
+    attachData(transactId, data) {
+        if (!this.transactions.has(transactId)) {
+            return false;
+        }
+
+        const tr = this.transactions.get(transactId);
+        Reflect.set(tr, "attachData", data);
+
+        return true;
     }
 
     /**

@@ -297,7 +297,10 @@ async function createAlarm(header, alarm) {
     }
     else {
         console.log("[EVENT] UPDATE Alarm");
-        transact.open(Update, "alarms", [message, severity, row.occurence + 1, row.id]);
+        const uuid = transact.open(Update, "alarms", [message, severity, row.occurence + 1, row.id]);
+        transact.attachData(uuid, {
+            correlateKey: row.correlate_key
+        });
     }
 }
 
@@ -405,19 +408,16 @@ async function registerEventType(header, name) {
  * @param {!Array} event event
  * @returns {Promise<void>}
  */
-async function publish(header, [type, name, data = "", subs = []]) {
+async function publish(header, [type, name, data = ""]) {
     if (!AVAILABLE_TYPES.has(type)) {
         throw new Error(`Unknown event with typeName ${type}`);
     }
     if (typeof name !== "string") {
-        throw new Error("name should be typeof string");
-    }
-    if (typeof data !== "string") {
-        throw new Error("data should be typeof string");
+        throw new TypeError("name should be typeof string");
     }
 
     const id = AVAILABLE_TYPES.get(type);
-    transact.open(Insert, "events", [id, name, data]);
+    transact.open(Insert, "events", [id, name, data.toString()]);
 
     // Send data to subscribers!
     const subject = `${type}.${name}`;
@@ -425,7 +425,7 @@ async function publish(header, [type, name, data = "", subs = []]) {
         const addons = [...SUBSCRIBERS.get(subject)];
         Promise.all(addons.map(function sendMessage(addonName) {
             return Events.sendMessage(`${addonName}.event`, {
-                args: [subject, subs],
+                args: [subject, data],
                 noReturn: true
             });
         }));
@@ -502,11 +502,11 @@ Events.on("start", async() => {
     await transact.loadSubjectsFromFile(join(__dirname, "src", "sqlquery.json"));
 
     transact.on("alarms.insert", (ts, data) => {
-        // When an alarm is inserted
+        Events.executeCallback("publish", void 0, ["Alarm", "open", `${data[4]}.${data[3]}`]);
     });
 
-    transact.on("alarms.update", (ts, data) => {
-        // When an alarm is updated!
+    transact.on("alarms.update", (ts, data, attach) => {
+        Events.executeCallback("publish", void 0, ["Alarm", "update", [attach.correlateKey, data[2]]]);
     });
 
     // Declare root Entity!
