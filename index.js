@@ -13,6 +13,7 @@ const is = require("@slimio/is");
 
 // Require Internal Dependencies
 const { assertEntity, assertMIC, assertAlarm, assertCorrelateID } = require("./src/asserts");
+const TransactManager = require("./src/transactManager");
 const QueueMap = require("./src/queues");
 
 // CONSTANTS
@@ -25,6 +26,11 @@ const SANITY_INTERVAL_MS = 60000;
 let db = null;
 let interval = null;
 let sanity = null;
+
+/**
+ * @type {TransactManager}
+ */
+let transact = null;
 
 /**
  * @const QueryTransac
@@ -77,13 +83,11 @@ async function declareEntityDescriptor(header, entityId, [key, value]) {
     const row = await db.get(
         "SELECT value FROM entity_descriptor WHERE entity_id=? AND key=?", entityId, key);
 
-    if (typeof row !== "undefined") {
-        if (value !== row.value) {
-            QueryTransac.push({ action: "update", name: "descriptor", data: [row.value, entityId, key] });
-        }
-    }
-    else {
+    if (typeof row === "undefined") {
         QueryTransac.push({ action: "insert", name: "descriptor", data: [entityId, key, value] });
+    }
+    else if (value !== row.value) {
+        QueryTransac.push({ action: "update", name: "descriptor", data: [row.value, entityId, key] });
     }
 }
 
@@ -103,11 +107,15 @@ async function getDescriptors(header, entityId, key) {
     }
 
     if (typeof key === "string") {
-        return await db.get(
+        const descriptors = await db.get(
             "SELECT * FROM entity_descriptor WHERE entityId=? AND key=?", entityId, key);
+
+        return descriptors;
     }
 
-    return await db.all("SELECT * FROM entity_descriptor WHERE entityId=?", entityId);
+    const descriptors = await db.all("SELECT * FROM entity_descriptor WHERE entityId=?", entityId);
+
+    return descriptors;
 }
 
 /**
@@ -182,7 +190,9 @@ async function searchEntities(header, searchOptions) {
     const { name = null, pattern = null, createdAt = Date.now() } = searchOptions;
 
     if (name !== null) {
-        return await db.get("SELECT * FROM entity WHERE name=?", name);
+        const result = await db.get("SELECT * FROM entity WHERE name=?", name);
+
+        return result;
     }
 
     const rawResult = await db.all("SELECT * FROM entity WHERE createdAt < ?", createdAt);
@@ -335,7 +345,9 @@ async function getAlarms(header, cid) {
         return alarm;
     }
 
-    return await db.all("SELECT * FROM alarms");
+    const alarms = await db.all("SELECT * FROM alarms");
+
+    return alarms;
 }
 
 /**
@@ -356,7 +368,7 @@ async function getAlarmsOccurence(header, cid, { time, severity = 0 }) {
         throw new TypeError("time property should be type of number");
     }
     const dateNow = Date.now() / 1000;
-    const startDate = dateNow - time * 60;
+    const startDate = (dateNow - time) * 60;
 
     const alarms = await db.get(
         "SELECT COUNT(*) AS result FROM events WHERE type_id=3 AND name=\"update\" AND data=? AND createdAt BETWEEN datetime(?, 'unixepoch') AND datetime(?, 'unixepoch')",
@@ -434,7 +446,7 @@ async function publish(header, [type, name, data = "", subs = []]) {
     const subject = `${type}.${name}`;
     if (SUBSCRIBERS.has(subject)) {
         const addons = [...SUBSCRIBERS.get(subject)];
-        Promise.all(addons.map((addonName) => {
+        Promise.all(addons.map(function sendMessage(addonName) {
             return Events.sendMessage(`${addonName}.event`, {
                 args: [subject, subs],
                 noReturn: true
@@ -500,9 +512,7 @@ async function populateMetricsInterval() {
 
         console.time(`run_transact_${id}`);
         const mDB = await sqlite.open(join(METRICS_DIR, `${id}.db`));
-        await Promise.all(metrics.map((metric) =>
-            mDB.run("INSERT INTO metrics VALUES(?, ?)", metric[0], metric[1])
-        ));
+        await Promise.all(metrics.map((metric) => mDB.run("INSERT INTO metrics VALUES(?, ?)", metric[0], metric[1])));
         console.timeEnd(`run_transact_${id}`);
         mDB.close();
     }
@@ -546,6 +556,9 @@ Events.on("start", async() => {
         AVAILABLE_TYPES.set(type.name, type.id);
     }
 
+    // Create transact
+    transact = new TransactManager(db);
+
     // Declare root Entity!
     declareEntity(void 0, {
         name: os.hostname(),
@@ -562,7 +575,6 @@ Events.on("start", async() => {
     // Force Addon isReady by himself
     await publish(void 0, ["Addon", "ready", "events"]);
     Events.isReady = true;
-    // Events.ready();
 
     interval = timer.setInterval(populateMetricsInterval, POPULATE_INTERVAL_MS);
     sanity = timer.setInterval(sanityInterval, SANITY_INTERVAL_MS);
@@ -571,6 +583,11 @@ Events.on("start", async() => {
 // Addon "Stop" event listener
 Events.on("stop", () => {
     Events.isReady = false;
+    if (transact !== null) {
+        transact.exit();
+        transact = null;
+    }
+
     timer.clearInterval(interval);
     timer.clearInterval(sanity);
     db.close();
