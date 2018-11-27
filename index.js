@@ -21,6 +21,7 @@ const DB_DIR = join(__dirname, "db");
 const METRICS_DIR = join(DB_DIR, "metrics");
 const POPULATE_INTERVAL_MS = 5000;
 const SANITY_INTERVAL_MS = 60000;
+const { Insert, Update, Delete } = TransactManager.Actions;
 
 // GLOBALS
 let db = null;
@@ -31,16 +32,6 @@ let sanity = null;
  * @type {TransactManager}
  */
 let transact = null;
-
-/**
- * @const QueryTransac
- * @desc Transaction table that contains all SQL query actions
- * @type {Transaction[]}
- */
-const QueryTransac = [];
-
-// Prepared stmt of SQL Query
-const SQLQUERY = require("./sqlquery.json");
 
 // QUEUES & MAPS
 const Q_METRICS = new QueueMap();
@@ -84,10 +75,10 @@ async function declareEntityDescriptor(header, entityId, [key, value]) {
         "SELECT value FROM entity_descriptor WHERE entity_id=? AND key=?", entityId, key);
 
     if (typeof row === "undefined") {
-        QueryTransac.push({ action: "insert", name: "descriptor", data: [entityId, key, value] });
+        transact.open(Insert, "descriptor", [entityId, key, value]);
     }
     else if (value !== row.value) {
-        QueryTransac.push({ action: "update", name: "descriptor", data: [row.value, entityId, key] });
+        transact.open(Update, "descriptor", [row.value, entityId, key]);
     }
 }
 
@@ -141,7 +132,7 @@ async function declareEntity(header, entity) {
 
     if (typeof row !== "undefined") {
         if (description !== row.description) {
-            QueryTransac.push({ action: "update", name: "entity", data: [description, row.id] });
+            transact.open(Update, "entity", [description, row.id]);
         }
 
         setImmediate(() => {
@@ -219,7 +210,7 @@ async function removeEntity(header, entityId) {
         throw new TypeError("entityId should be typeof number");
     }
 
-    QueryTransac.push({ action: "delete", name: "entity", data: [entityId] });
+    transact.open(Delete, "entity", [entityId]);
 }
 
 /**
@@ -241,7 +232,7 @@ async function declareMetricIdentity(header, mic) {
 
     if (typeof row !== "undefined") {
         if (row.description !== desc || row.interval !== interval) {
-            QueryTransac.push({ action: "update", name: "mic", data: [desc, interval, row.id] });
+            transact.open(Update, "mic", [desc, interval, row.id]);
         }
 
         return row.id;
@@ -302,23 +293,11 @@ async function createAlarm(header, alarm) {
 
     if (typeof row === "undefined") {
         console.log("[EVENT] INSERT new Alarm");
-        QueryTransac.push({
-            action: "insert",
-            name: "alarms",
-            data: [uuid(), message, severity, correlateKey, entityId],
-            publish: `${entityId}#${correlateKey}`,
-            subs: [`${entityId}#${correlateKey}`]
-        });
+        transact.open(Insert, "alarms", [uuid(), message, severity, correlateKey, entityId]);
     }
     else {
         console.log("[EVENT] UPDATE Alarm");
-        QueryTransac.push({
-            action: "update",
-            name: "alarms",
-            data: [message, severity, row.occurence + 1, row.id],
-            publish: `${entityId}#${correlateKey}`,
-            subs: [`${entityId}#${correlateKey}`, row.occurence + 1]
-        });
+        transact.open(Update, "alarms", [message, severity, row.occurence + 1, row.id]);
     }
 }
 
@@ -345,9 +324,7 @@ async function getAlarms(header, cid) {
         return alarm;
     }
 
-    const alarms = await db.all("SELECT * FROM alarms");
-
-    return alarms;
+    return await db.all("SELECT * FROM alarms");
 }
 
 /**
@@ -392,7 +369,7 @@ async function removeAlarm(header, cid) {
     assertCorrelateID(cid);
 
     const [entityId, correlateKey] = cid.split("#");
-    QueryTransac.push({ action: "delete", name: "alarms", data: [correlateKey, entityId] });
+    transact.open(Delete, "alarms", [correlateKey, entityId]);
 }
 
 /**
@@ -438,9 +415,9 @@ async function publish(header, [type, name, data = "", subs = []]) {
     if (typeof data !== "string") {
         throw new Error("data should be typeof string");
     }
-    const id = AVAILABLE_TYPES.get(type);
 
-    QueryTransac.push({ action: "insert", name: "events", data: [id, name, data] });
+    const id = AVAILABLE_TYPES.get(type);
+    transact.open(Insert, "events", [id, name, data]);
 
     // Send data to subscribers!
     const subject = `${type}.${name}`;
@@ -480,28 +457,6 @@ async function subscribe(header, subjectName) {
 async function populateMetricsInterval() {
     console.log("Publisher interval triggered!");
 
-    // Handle waiting transactions!
-    console.time("QueryTransac");
-    if (QueryTransac.length > 0) {
-        const pTransac = [];
-        const tTransacArr = QueryTransac.splice(0, QueryTransac.length);
-        while (tTransacArr.length > 0) {
-            const ts = tTransacArr.pop();
-            if (ts.name === "alarms" && ts.action === "insert") {
-                console.log("[EVENT] Alarms insert");
-                Events.executeCallback("publish", void 0, ["Alarm", "open", ts.publish, ts.subs]);
-            }
-            if (ts.name === "alarms" && ts.action === "update") {
-                console.log("[EVENT] Alarms update");
-                Events.executeCallback("publish", void 0, ["Alarm", "update", ts.publish, ts.subs]);
-            }
-            pTransac.push(db.run(SQLQUERY[ts.name][ts.action], ...ts.data));
-        }
-
-        await Promise.all(pTransac);
-    }
-    console.timeEnd("QueryTransac");
-
     // Handle Metrics DBs transactions
     console.time("metrics_transaction");
     for (const id of Q_METRICS.ids()) {
@@ -519,48 +474,40 @@ async function populateMetricsInterval() {
     console.timeEnd("metrics_transaction");
 }
 
-/**
- * @function sanityInterval
- * @desc Events sanity interval
- * @returns {Promise<void>}
- */
-async function sanityInterval() {
-    console.log("[Events] Health interval triggered");
-
-    const evtTypes = await db.all("SELECT name FROM events_type");
-    const typesName = evtTypes.map((row) => row.name);
-
-    for (const key of SUBSCRIBERS.keys()) {
-        for (const name of typesName) {
-            if (!key.includes(name)) {
-                SUBSCRIBERS.delete(key);
-            }
-        }
-    }
-}
-
 // Addon "Start" event listener
 Events.on("start", async() => {
     console.log("[EVENTS] Start event triggered!");
+    // Create DB Dir
     await createDirectory(DB_DIR);
     await createDirectory(METRICS_DIR);
 
+    // Open SQLite DB
     db = await sqlite.open(join(DB_DIR, "events.db"));
     await db.exec(await readFile(join(__dirname, "sql", "events.sql"), "utf-8"));
     await registerEventType(void 0, "Addon");
     await registerEventType(void 0, "Metric");
     await registerEventType(void 0, "Alarm");
 
+    // Hydrate events type (Memory Map).
     const types = await db.all("SELECT id, name from events_type");
     for (const type of types) {
         AVAILABLE_TYPES.set(type.name, type.id);
     }
 
-    // Create transact
+    // Create The transaction Manager
     transact = new TransactManager(db, {
+        verbose: false,
         interval: POPULATE_INTERVAL_MS
     });
-    await transact.loadSubjectsFromFile("./src/sqlquery.json");
+    await transact.loadSubjectsFromFile(join(__dirname, "src", "sqlquery.json"));
+
+    transact.on("alarms.insert", (ts, data) => {
+        // When an alarm is inserted
+    });
+
+    transact.on("alarms.update", (ts, data) => {
+        // When an alarm is updated!
+    });
 
     // Declare root Entity!
     declareEntity(void 0, {
@@ -579,8 +526,22 @@ Events.on("start", async() => {
     await publish(void 0, ["Addon", "ready", "events"]);
     Events.isReady = true;
 
+    // Setup intervals
     interval = timer.setInterval(populateMetricsInterval, POPULATE_INTERVAL_MS);
-    sanity = timer.setInterval(sanityInterval, SANITY_INTERVAL_MS);
+    sanity = timer.setInterval(async() => {
+        console.log("[Events] Health interval triggered");
+
+        const evtTypes = await db.all("SELECT name FROM events_type");
+        const typesName = evtTypes.map((row) => row.name);
+
+        for (const key of SUBSCRIBERS.keys()) {
+            for (const name of typesName) {
+                if (!key.includes(name)) {
+                    SUBSCRIBERS.delete(key);
+                }
+            }
+        }
+    }, SANITY_INTERVAL_MS);
 });
 
 // Addon "Stop" event listener

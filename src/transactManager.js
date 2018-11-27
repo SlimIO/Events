@@ -45,16 +45,20 @@ class TransactManager extends EventEmitter {
      * @param {*} db SQLite db
      * @param {Object} [options] options object
      * @param {Number} [options.interval=5000] Transaction Interval
+     * @param {Boolean} [options.verbose=false] Enable verbose mode
      */
     constructor(db, options = Object.create(null)) {
         super();
         this.db = db;
+        this.verbose = typeof options.verbose === "boolean" ? options.verbose : false;
+
         /** @type {Map<String, Actions>} */
         this.subjects = new Map();
 
         /** @type {Map<String, Transaction>} */
         this.transactions = new Map();
 
+        // Set non-enumerable TRANSACT property
         Reflect.defineProperty(this, TRANSACT, {
             enumerable: false,
             value: []
@@ -65,6 +69,9 @@ class TransactManager extends EventEmitter {
         this.timer = timer.setInterval(async() => {
             /** @type {String[]} */
             const qtArr = this[TRANSACT];
+            if (this.verbose) {
+                console.log(`Run transaction with ${qtArr.length} element!`);
+            }
 
             // If there is no open transaction (then, just return)
             if (qtArr.length === 0) {
@@ -74,14 +81,13 @@ class TransactManager extends EventEmitter {
             let tLen = qtArr.length;
             while (tLen--) {
                 const transactId = qtArr.shift();
-                const { subject, action, data } = this.transactions.get(transactId);
+                const { subject, action, data, openAt } = this.transactions.get(transactId);
 
                 const SQLQuery = this.subjects.get(subject)[action];
                 this.db.run(SQLQuery, ...data);
                 this.transactions.delete(transactId);
+                this.emit(`${subject}.${action}`, openAt, data);
             }
-
-            console.log("All transactions completed successfully!");
         }, intervalMs);
     }
 
@@ -180,6 +186,9 @@ class TransactManager extends EventEmitter {
         // Generate transactId
         const transactId = uuid();
         const openAt = Date.now();
+        if (this.verbose) {
+            console.log(`Open new transaction (${subject}.${action}) with uid ${transactId}`);
+        }
 
         const index = this[TRANSACT].push(transactId);
         this.transactions.set(transactId, {
@@ -227,7 +236,15 @@ class TransactManager extends EventEmitter {
     }
 }
 
-// Actions Enumeration
+/**
+ * @static
+ * @readonly
+ * @memberof TransactManager#
+ * @type {Object}
+ * @property {String} Insert
+ * @property {String} Update
+ * @property {String} Delete
+ */
 TransactManager.Actions = Object.freeze({
     Insert: "insert",
     Update: "update",
