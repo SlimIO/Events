@@ -11,9 +11,9 @@ const { createDirectory } = require("@slimio/utils");
 const timer = require("@slimio/timer");
 const is = require("@slimio/is");
 const Queue = require("@slimio/queue");
+const { assertEntity, assertMIC, assertAlarm, assertCorrelateID } = require("@slimio/utils");
 
 // Require Internal Dependencies
-const { assertEntity, assertMIC, assertAlarm, assertCorrelateID } = require("./src/asserts");
 const TransactManager = require("./src/transactManager");
 
 // CONSTANTS
