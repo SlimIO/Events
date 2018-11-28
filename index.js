@@ -10,11 +10,11 @@ const Addon = require("@slimio/addon");
 const { createDirectory } = require("@slimio/utils");
 const timer = require("@slimio/timer");
 const is = require("@slimio/is");
+const Queue = require("@slimio/queue");
 
 // Require Internal Dependencies
 const { assertEntity, assertMIC, assertAlarm, assertCorrelateID } = require("./src/asserts");
 const TransactManager = require("./src/transactManager");
-const QueueMap = require("./src/queues");
 
 // CONSTANTS
 const DB_DIR = join(__dirname, "db");
@@ -34,7 +34,7 @@ let sanity = null;
 let transact = null;
 
 // QUEUES & MAPS
-const Q_METRICS = new QueueMap();
+const Q_METRICS = new Queue();
 
 /** @type {Map<String, Number>} */
 const AVAILABLE_TYPES = new Map([
