@@ -29,7 +29,7 @@
   "dependencies": {
     "@slimio/addon": "^0.15.0",
     "@slimio/is": "^1.4.0",
-    "@slimio/queue": "^0.1.0",
+    "@slimio/queue": "^0.2.0",
     "@slimio/timer": "^1.0.0",
     "@slimio/utils": "^0.6.0",
     "sqlite": "^3.0.0",
