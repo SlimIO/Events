@@ -270,6 +270,15 @@ async function publishMetric(header, micId, [value, harvestedAt = Date.now()]) {
     Q_METRICS.enqueue(micId, [value, harvestedAt]);
 }
 
+async function getMIC(header, micId) {
+    dbShouldBeOpen();
+    if (typeof micId !== "number") {
+        throw new TypeError("metric micId should be typeof number!");
+    }
+
+    return await db.get("SELECT * FROM metric_identity_card WHERE id=?", micId);
+}
+
 /**
  * @async
  * @function createAlarm
@@ -564,6 +573,8 @@ Events.registerCallback("search_entities", searchEntities);
 Events.registerCallback("remove_entity", removeEntity);
 Events.registerCallback("declare_mic", declareMetricIdentity);
 Events.registerCallback("publish_metric", publishMetric);
+Events.registerCallback("get_mic", getMIC);
+
 
 // Register alarms callback(s)
 Events.registerCallback("create_alarm", createAlarm);
