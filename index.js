@@ -266,10 +266,18 @@ async function publishMetric(header, micId, [value, harvestedAt = Date.now()]) {
         throw new TypeError("metric value should be typeof number!");
     }
 
-    console.log(`Enqueue new metric for mic ${micId} with value ${value}`);
-    Q_METRICS.enqueue(micId, [value, harvestedAt]);
+    // console.log(`Enqueue new metric for mic ${micId} with value ${value}`);
+    Q_METRICS.enqueue(header.from, [micId, value, harvestedAt]);
 }
 
+/**
+ * @async
+ * @function getMIC
+ * @desc Get a metric identity card from DB.
+ * @param {*} header Callback Header
+ * @param {!Number} micId MetricIdentityCard ID
+ * @returns {Promise<Object>}
+ */
 async function getMIC(header, micId) {
     dbShouldBeOpen();
     if (typeof micId !== "number") {
@@ -470,8 +478,11 @@ async function populateMetricsInterval() {
 
         console.time(`run_transact_${id}`);
         const mDB = await sqlite.open(join(METRICS_DIR, `${id}.db`));
-        await Promise.all(metrics.map((metric) => mDB.run("INSERT INTO metrics VALUES(?, ?)", metric[0], metric[1])));
+        // await Promise.all(metrics.map((metric) => mDB.run(`INSERT INTO "${metric[0]}" VALUES(?, ?)`, metric[1], metric[2])));
+        mDB.run("BEGIN EXCLUSIVE TRANSACTION;");
+        metrics.map((metric) => mDB.run(`INSERT INTO "${metric[0]}" VALUES(?, ?)`, metric[1], metric[2]));
         console.timeEnd(`run_transact_${id}`);
+        mDB.run("COMMIT TRANSACTION;");
         mDB.close();
     }
     console.timeEnd("metrics_transaction");
