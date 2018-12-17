@@ -491,7 +491,6 @@ async function populateMetricsInterval() {
         await mDB.run("BEGIN EXCLUSIVE TRANSACTION;");
         await Promise.all(metrics.map((metric) => mDB.run(`INSERT INTO "${metric[0]}" VALUES(?, ?)`, metric[1], metric[2])));
         await mDB.run("COMMIT TRANSACTION;");
-        // metrics.map((metric) => mDB.run(`INSERT INTO "${metric[0]}" VALUES(?, ?)`, metric[1], metric[2]));
         console.timeEnd(`run_transact_${id}`);
         mDB.close();
     }
