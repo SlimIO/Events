@@ -488,11 +488,11 @@ async function populateMetricsInterval() {
 
         console.time(`run_transact_${id}`);
         const mDB = await sqlite.open(join(METRICS_DIR, `${id}.db`));
-        // await Promise.all(metrics.map((metric) => mDB.run(`INSERT INTO "${metric[0]}" VALUES(?, ?)`, metric[1], metric[2])));
-        mDB.run("BEGIN EXCLUSIVE TRANSACTION;");
-        metrics.map((metric) => mDB.run(`INSERT INTO "${metric[0]}" VALUES(?, ?)`, metric[1], metric[2]));
+        await mDB.run("BEGIN EXCLUSIVE TRANSACTION;");
+        await Promise.all(metrics.map((metric) => mDB.run(`INSERT INTO "${metric[0]}" VALUES(?, ?)`, metric[1], metric[2])));
+        await mDB.run("COMMIT TRANSACTION;");
+        // metrics.map((metric) => mDB.run(`INSERT INTO "${metric[0]}" VALUES(?, ?)`, metric[1], metric[2]));
         console.timeEnd(`run_transact_${id}`);
-        mDB.run("COMMIT TRANSACTION;");
         mDB.close();
     }
     console.timeEnd("metrics_transaction");
