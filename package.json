@@ -31,7 +31,7 @@
     "@slimio/is": "^1.4.0",
     "@slimio/queue": "^0.2.1",
     "@slimio/timer": "^1.0.0",
-    "@slimio/utils": "^0.6.0",
+    "@slimio/utils": "^0.6.1",
     "sqlite": "^3.0.0",
     "uuid": "^3.3.2"
   }
