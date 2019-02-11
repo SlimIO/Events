@@ -21,9 +21,9 @@
     "@escommunity/minami": "^1.0.0",
     "@slimio/eslint-config": "^2.0.3",
     "@types/es6-shim": "^0.31.39",
-    "@types/node": "^10.12.18",
-    "eslint": "^5.11.1",
-    "nyc": "^13.1.0"
+    "@types/node": "^10.12.24",
+    "eslint": "^5.13.0",
+    "nyc": "^13.2.0"
   },
   "dependencies": {
     "@slimio/addon": "^0.15.2",
