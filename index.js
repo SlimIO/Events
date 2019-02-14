@@ -168,11 +168,8 @@ async function declareEntity(header, entity) {
  * @param {Object} searchOptions search Options
  * @returns {Promise<Number>}
  */
-async function searchEntities(header, searchOptions) {
+async function searchEntities(header, searchOptions = Object.create(null)) {
     dbShouldBeOpen();
-    if (typeof entityName !== "string") {
-        throw new TypeError("entityName should be typeof string");
-    }
     if (!is.plainObject(searchOptions)) {
         throw new TypeError("searchOptions should be a plainObject!");
     }
@@ -226,12 +223,12 @@ async function declareMetricIdentity(header, mic) {
     const row = await db.get(query, name, entityId);
 
     async function createMetricDB(id) {
-        console.time(`run_create_metric_table_${id}`);
+        // console.time(`run_create_metric_table_${id}`);
         const mDB = await sqlite.open(join(METRICS_DIR, `${header.from}.db`));
         await mDB.exec(
             `CREATE TABLE IF NOT EXISTS "${id}" ("value" INTEGER NOT NULL, "harvestedAt" DATE NOT NULL);`);
         mDB.close();
-        console.timeEnd(`run_create_metric_table_${id}`);
+        // console.timeEnd(`run_create_metric_table_${id}`);
     }
 
     if (typeof row !== "undefined") {
@@ -479,7 +476,6 @@ async function populateMetricsInterval() {
     console.log("Publisher interval triggered!");
 
     // Handle Metrics DBs transactions
-    console.time("metrics_transaction");
     for (const id of Q_METRICS.ids()) {
         const metrics = [...Q_METRICS.dequeueAll(id)];
         if (metrics.length <= 0) {
@@ -491,10 +487,9 @@ async function populateMetricsInterval() {
         await mDB.run("BEGIN EXCLUSIVE TRANSACTION;");
         await Promise.all(metrics.map((metric) => mDB.run(`INSERT INTO "${metric[0]}" VALUES(?, ?)`, metric[1], metric[2])));
         await mDB.run("COMMIT TRANSACTION;");
-        console.timeEnd(`run_transact_${id}`);
         mDB.close();
+        console.timeEnd(`run_transact_${id}`);
     }
-    console.timeEnd("metrics_transaction");
 }
 
 // Addon "Start" event listener
