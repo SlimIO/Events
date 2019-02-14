@@ -173,13 +173,16 @@ async function searchEntities(header, searchOptions = Object.create(null)) {
     if (!is.plainObject(searchOptions)) {
         throw new TypeError("searchOptions should be a plainObject!");
     }
-    const { name = null, pattern = null, createdAt = Date.now() } = searchOptions;
+    const { name = null, pattern = null, fields = "*", createdAt = Date.now() } = searchOptions;
+    if (typeof fields !== "string") {
+        throw new TypeError("fields must be a string");
+    }
 
     if (name !== null) {
         return await db.get("SELECT * FROM entity WHERE name=?", name);
     }
 
-    const rawResult = await db.all("SELECT * FROM entity WHERE createdAt < ?", createdAt);
+    const rawResult = await db.all(`SELECT ${fields} FROM entity WHERE createdAt > ?`, createdAt);
     if (typeof pattern === "string") {
         const regex = new RegExp(pattern, "g");
 
