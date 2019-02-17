@@ -219,6 +219,7 @@ async function removeEntity(header, entityId) {
  */
 async function declareMetricIdentity(header, mic) {
     dbShouldBeOpen();
+    // console.log(mic);
     assertMIC(mic);
     const { name, description: desc = "", unit, interval = 5, max = null, entityId } = mic;
 
@@ -523,7 +524,7 @@ Events.on("start", async() => {
     await transact.loadSubjectsFromFile(join(__dirname, "src", "sqlquery.json"));
 
     transact.on("alarms.insert", (ts, data) => {
-        Events.executeCallback("publish", void 0, ["Alarm", "open", `${data[4]}.${data[3]}`]);
+        Events.executeCallback("publish", void 0, ["Alarm", "open", `${data[4]}#${data[3]}`]);
     });
 
     transact.on("alarms.update", (ts, data, attach) => {
