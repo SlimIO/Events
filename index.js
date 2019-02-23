@@ -192,6 +192,15 @@ async function searchEntities(header, searchOptions = Object.create(null)) {
     return rawResult;
 }
 
+async function getEntityByID(header, entityId) {
+    dbShouldBeOpen();
+    if (typeof entityId !== "number") {
+        throw new TypeError("entityId must be typeof number");
+    }
+
+    return await db.get("SELECT * FROM entity WHERE id=?", entityId);
+}
+
 /**
  * @async
  * @function removeEntity
@@ -203,7 +212,7 @@ async function searchEntities(header, searchOptions = Object.create(null)) {
 async function removeEntity(header, entityId) {
     dbShouldBeOpen();
     if (typeof entityId !== "number") {
-        throw new TypeError("entityId should be typeof number");
+        throw new TypeError("entityId must be typeof number");
     }
 
     transact.open(Delete, "entity", [entityId]);
@@ -322,8 +331,8 @@ async function createAlarm(header, alarm) {
     }
 
     console.log("[EVENT] UPDATE Alarm");
-    const uuid = transact.open(Update, "alarms", [message, severity, row.occurence + 1, row.id]);
-    transact.attachData(uuid, {
+    const id = transact.open(Update, "alarms", [message, severity, row.occurence + 1, row.id]);
+    transact.attachData(id, {
         correlateKey: row.correlate_key
     });
 
@@ -592,6 +601,7 @@ Events.registerCallback("declare_entity", declareEntity);
 Events.registerCallback("declare_entity_descriptor", declareEntityDescriptor);
 Events.registerCallback("get_descriptors", getDescriptors);
 Events.registerCallback("search_entities", searchEntities);
+Events.registerCallback("get_entity_by_id", getEntityByID);
 Events.registerCallback("remove_entity", removeEntity);
 Events.registerCallback("declare_mic", declareMetricIdentity);
 Events.registerCallback("publish_metric", publishMetric);
