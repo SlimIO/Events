@@ -304,7 +304,7 @@ async function getMIC(header, micId) {
  * @desc Create a new Alarm
  * @param {*} header Callback Header
  * @param {*} alarm Alarm Object
- * @returns {Promise<void>}
+ * @returns {Promise<Boolean>}
  */
 async function createAlarm(header, alarm) {
     dbShouldBeOpen();
@@ -317,14 +317,17 @@ async function createAlarm(header, alarm) {
     if (typeof row === "undefined") {
         console.log("[EVENT] INSERT new Alarm");
         transact.open(Insert, "alarms", [uuid(), message, severity, correlateKey, entityId]);
+
+        return false;
     }
-    else {
-        console.log("[EVENT] UPDATE Alarm");
-        const uuid = transact.open(Update, "alarms", [message, severity, row.occurence + 1, row.id]);
-        transact.attachData(uuid, {
-            correlateKey: row.correlate_key
-        });
-    }
+
+    console.log("[EVENT] UPDATE Alarm");
+    const uuid = transact.open(Update, "alarms", [message, severity, row.occurence + 1, row.id]);
+    transact.attachData(uuid, {
+        correlateKey: row.correlate_key
+    });
+
+    return true;
 }
 
 /**
