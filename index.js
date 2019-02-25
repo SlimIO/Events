@@ -325,7 +325,11 @@ async function createAlarm(header, alarm) {
 
     if (typeof row === "undefined") {
         console.log("[EVENT] INSERT new Alarm");
-        transact.open(Insert, "alarms", [uuid(), message, severity, correlateKey, entityId]);
+        await db.run(
+            "INSERT INTO alarms (uuid, message, severity, correlate_key, entity_id) VALUES(?, ?, ?, ?, ?)",
+            uuid(), message, severity, correlateKey, entityId
+        );
+        Events.executeCallback("publish", void 0, ["Alarm", "open", `${entityId}#${correlateKey}`]);
 
         return false;
     }
