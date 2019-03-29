@@ -455,7 +455,14 @@ async function publish(header, [type, name, data = ""]) {
     }
 
     const id = AVAILABLE_TYPES.get(type);
-    transact.open(Insert, "events", [id, name, data.toString()]);
+    if (Events.isAwake) {
+        transact.open(Insert, "events", [id, name, data.toString()]);
+    }
+    else {
+        setTimeout(async() => {
+            await db.run("INSERT INTO events (type_id, name, data) VALUES(?, ?, ?)", id, name, data.toString());
+        }, 100);
+    }
 
     // Send data to subscribers!
     const subject = `${type}.${name}`;
