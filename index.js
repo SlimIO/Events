@@ -335,10 +335,10 @@ async function createAlarm(header, alarm) {
     }
 
     console.log("[EVENT] UPDATE Alarm");
-    const id = transact.open(Update, "alarms", [message, severity, row.occurence + 1, row.id]);
-    transact.attachData(id, {
-        correlateKey: row.correlate_key
-    });
+    await db.run(
+        "UPDATE alarms SET message=?, severity=?, occurence=?, updatedAt=DATETIME('now') WHERE id=?",
+        message, severity, row.occurence + 1, row.id
+    );
 
     return true;
 }
