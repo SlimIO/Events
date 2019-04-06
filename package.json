@@ -10,8 +10,11 @@
     "type": "git",
     "url": "git+https://github.com/SlimIO/Events.git"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+      "SlimIO",
+      "events"
+  ],
+  "author": "SlimIO",
   "license": "MIT",
   "bugs": {
     "url": "https://github.com/SlimIO/Events/issues"
