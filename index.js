@@ -324,7 +324,6 @@ async function createAlarm(header, alarm) {
         "SELECT * FROM alarms WHERE correlate_key=? AND entity_id=?", correlateKey, entityId);
 
     if (typeof row === "undefined") {
-        console.log("[EVENT] INSERT new Alarm");
         await db.run(
             "INSERT INTO alarms (uuid, message, severity, correlate_key, entity_id) VALUES(?, ?, ?, ?, ?)",
             hyperid()(), message, severity, correlateKey, entityId
@@ -334,11 +333,12 @@ async function createAlarm(header, alarm) {
         return false;
     }
 
-    console.log("[EVENT] UPDATE Alarm");
+    const occur = row.occurence + 1;
     await db.run(
         "UPDATE alarms SET message=?, severity=?, occurence=?, updatedAt=DATETIME('now') WHERE id=?",
-        message, severity, row.occurence + 1, row.id
+        message, severity, occur, row.id
     );
+    Events.executeCallback("publish", void 0, ["Alarm", "update", [row.correlate_key, occur]]);
 
     return true;
 }
