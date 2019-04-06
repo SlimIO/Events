@@ -10,6 +10,14 @@
     "type": "git",
     "url": "git+https://github.com/SlimIO/Events.git"
   },
+  "engines": {
+      "node": ">=10"
+  },
+  "husky": {
+    "hooks": {
+      "commit-msg": "commitlint -E HUSKY_GIT_PARAMS"
+    }
+  },
   "keywords": [
     "SlimIO",
     "events"
