@@ -11,7 +11,7 @@
     "url": "git+https://github.com/SlimIO/Events.git"
   },
   "engines": {
-      "node": ">=10"
+    "node": ">=10"
   },
   "husky": {
     "hooks": {
@@ -40,7 +40,7 @@
     "nyc": "^13.2.0"
   },
   "dependencies": {
-    "@slimio/addon": "^0.15.2",
+    "@slimio/addon": "^0.16.0",
     "@slimio/is": "^1.4.0",
     "@slimio/queue": "^0.2.1",
     "@slimio/timer": "^1.0.0",
