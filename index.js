@@ -1,4 +1,4 @@
-// Require NodeJS Dependencies
+// Require Node.js Dependencies
 const { join } = require("path");
 const { readFile } = require("fs").promises;
 const os = require("os");
@@ -11,9 +11,7 @@ const timer = require("@slimio/timer");
 const is = require("@slimio/is");
 const Queue = require("@slimio/queue");
 const { assertEntity, assertMIC, assertAlarm, assertCorrelateID, createDirectory } = require("@slimio/utils");
-
-// Require Internal Dependencies
-const TransactManager = require("./src/transactManager");
+const TransactManager = require("@slimio/sqlite-transaction");
 
 // CONSTANTS
 const DB_DIR = join(__dirname, "db");
