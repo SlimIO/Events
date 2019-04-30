@@ -21,6 +21,7 @@ const DB_DIR = join(__dirname, "db");
 const METRICS_DIR = join(DB_DIR, "metrics");
 const POPULATE_INTERVAL_MS = 5000;
 const SANITY_INTERVAL_MS = 60000;
+const ENTITY_IDENTIFIER = new Set(["name", "id", "parent"]);
 const { Insert, Update, Delete } = TransactManager.Actions;
 
 // GLOBALS
@@ -173,7 +174,8 @@ async function searchEntities(header, searchOptions = Object.create(null)) {
     if (!is.plainObject(searchOptions)) {
         throw new TypeError("searchOptions should be a plainObject!");
     }
-    const { name = null, pattern = null, fields = "*", createdAt = Date.now() } = searchOptions;
+
+    const { name = null, pattern = null, patternIdentifier, fields = "*", createdAt = Date.now() } = searchOptions;
     if (typeof fields !== "string") {
         throw new TypeError("fields must be a string");
     }
@@ -185,8 +187,9 @@ async function searchEntities(header, searchOptions = Object.create(null)) {
     const rawResult = await db.all(`SELECT ${fields} FROM entity WHERE createdAt > ?`, createdAt);
     if (typeof pattern === "string") {
         const regex = new RegExp(pattern, "g");
+        const identifier = ENTITY_IDENTIFIER.has(patternIdentifier) ? patternIdentifier : "name";
 
-        return rawResult.filter((row) => regex.test(row.name));
+        return rawResult.filter((row) => regex.test(String(row[identifier])));
     }
 
     return rawResult;
