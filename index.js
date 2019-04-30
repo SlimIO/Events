@@ -7,11 +7,10 @@ const os = require("os");
 const sqlite = require("sqlite");
 const hyperid = require("hyperid");
 const Addon = require("@slimio/addon");
-const { createDirectory } = require("@slimio/utils");
 const timer = require("@slimio/timer");
 const is = require("@slimio/is");
 const Queue = require("@slimio/queue");
-const { assertEntity, assertMIC, assertAlarm, assertCorrelateID } = require("@slimio/utils");
+const { assertEntity, assertMIC, assertAlarm, assertCorrelateID, createDirectory } = require("@slimio/utils");
 
 // Require Internal Dependencies
 const TransactManager = require("./src/transactManager");
