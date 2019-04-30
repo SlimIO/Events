@@ -101,10 +101,10 @@ async function getDescriptors(header, entityId, key) {
     // If key is a string, then only return one descriptor
     if (typeof key === "string") {
         return await db.get(
-            "SELECT * FROM entity_descriptor WHERE entityId=? AND key=?", entityId, key);
+            "SELECT * FROM entity_descriptor WHERE entity_id=? AND key=?", entityId, key);
     }
 
-    return await db.all("SELECT * FROM entity_descriptor WHERE entityId=?", entityId);
+    return await db.all("SELECT * FROM entity_descriptor WHERE entity_id=?", entityId);
 }
 
 /**
