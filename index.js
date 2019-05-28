@@ -236,12 +236,11 @@ async function declareMetricIdentity(header, mic) {
     const row = await db.get(query, name, entityId);
 
     async function createMetricDB(id) {
-        // console.time(`run_create_metric_table_${id}`);
         const mDB = await sqlite.open(join(METRICS_DIR, `${header.from}.db`));
         await mDB.exec(
             `CREATE TABLE IF NOT EXISTS "${id}" ("value" INTEGER NOT NULL, "harvestedAt" DATE NOT NULL);`);
         mDB.close();
-        // console.timeEnd(`run_create_metric_table_${id}`);
+        Events.executeCallback("publish", void 0, ["Metric", "create", [header.from, id]]);
     }
 
     if (typeof row !== "undefined") {
@@ -249,9 +248,7 @@ async function declareMetricIdentity(header, mic) {
             transact.open(Update, "mic", [desc, interval, row.id]);
         }
         // Create Metrics table
-        setImmediate(() => {
-            createMetricDB(row.id);
-        });
+        setImmediate(() => createMetricDB(row.id).catch(console.error));
 
         return row.id;
     }
@@ -261,9 +258,7 @@ async function declareMetricIdentity(header, mic) {
         name, desc, unit, interval, max, entityId);
 
     // Create Metrics table
-    setImmediate(() => {
-        createMetricDB(lastID);
-    });
+    setImmediate(() => createMetricDB(lastID).catch(console.error));
 
     return lastID;
 }
@@ -304,7 +299,11 @@ async function getMIC(header, micId) {
         throw new TypeError("metric micId should be typeof number!");
     }
 
-    return await db.get("SELECT * FROM metric_identity_card WHERE id=?", micId);
+    return db.get("SELECT * FROM metric_identity_card WHERE id=?", micId);
+}
+
+async function getMICStats(header, micId) {
+
 }
 
 /**
@@ -454,15 +453,15 @@ async function publish(header, [type, name, data = ""]) {
         throw new TypeError("name should be typeof string");
     }
 
-    const id = AVAILABLE_TYPES.get(type);
-    if (Events.isAwake) {
-        transact.open(Insert, "events", [id, name, data.toString()]);
-    }
-    else {
-        setTimeout(async() => {
-            await db.run("INSERT INTO events (type_id, name, data) VALUES(?, ?, ?)", id, name, data.toString());
-        }, 100);
-    }
+    // const id = AVAILABLE_TYPES.get(type);
+    // if (Events.isAwake) {
+    //     transact.open(Insert, "events", [id, name, data.toString()]);
+    // }
+    // else {
+    //     setTimeout(async() => {
+    //         await db.run("INSERT INTO events (type_id, name, data) VALUES(?, ?, ?)", id, name, data.toString());
+    //     }, 100);
+    // }
 
     // Send data to subscribers!
     const subject = `${type}.${name}`;
@@ -616,6 +615,7 @@ Events.registerCallback("get_entity_by_id", getEntityByID);
 Events.registerCallback("remove_entity", removeEntity);
 Events.registerCallback("declare_mic", declareMetricIdentity);
 Events.registerCallback("publish_metric", publishMetric);
+Events.registerCallback("get_mic_stats", getMICStats);
 Events.registerCallback("get_mic", getMIC);
 
 
