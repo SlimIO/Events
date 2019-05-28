@@ -244,15 +244,15 @@ async function declareMetricIdentity(header, mic) {
     }
 
     const { lastID } = await db.run( // eslint-disable-next-line
-        "INSERT INTO metric_identity_card (name, description, sample_unit, sample_interval, sample_max_value, entity_id) VALUES (?, ?, ?, ?, ?, @entityId)",
-        name, desc, unit, interval, max, entityId);
+        "INSERT INTO metric_identity_card (name, description, sample_unit, sample_interval, sample_max_value, db_name, entity_id) VALUES (?, ?, ?, ?, ?, ?, @entityId)",
+        name, desc, unit, interval, max, header.from, entityId);
 
     // Create .db and table (if not exists).
     const mDB = await sqlite.open(join(METRICS_DIR, `${header.from}.db`));
     await mDB.exec(
-        `CREATE TABLE IF NOT EXISTS "${id}" ("value" INTEGER NOT NULL, "harvestedAt" DATE NOT NULL);`);
+        `CREATE TABLE IF NOT EXISTS "${lastID}" ("value" INTEGER NOT NULL, "harvestedAt" DATE NOT NULL);`);
     mDB.close();
-    Events.executeCallback("publish", void 0, ["Metric", "create", [header.from, id]]);
+    Events.executeCallback("publish", void 0, ["Metric", "create", [header.from, lastID]]);
 
     return lastID;
 }
@@ -296,8 +296,28 @@ async function getMIC(header, micId) {
     return db.get("SELECT * FROM metric_identity_card WHERE id=?", micId);
 }
 
+/**
+ * @async
+ * @function getMICStats
+ * @desc Get a stats for a given MIC
+ * @param {*} header Callback Header
+ * @param {!Number} micId MetricIdentityCard ID
+ * @returns {Promise<null | Object>}
+ */
 async function getMICStats(header, micId) {
+    const mic = await getMIC(header, micId);
+    const metricDB = await sqlite.open(join(METRICS_DIR, `${mic.db_name}.db`));
+    const result = { rawCount: null };
 
+    try {
+        const dbRes = await metricDB.get(`SELECT count(*) AS rawCount FROM "${micId}"`);
+        result.rawCount = dbRes.rawCount;
+    }
+    finally {
+        metricDB.close();
+    }
+
+    return result;
 }
 
 /**

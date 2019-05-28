@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS "metric_identity_card" (
     "name" VARCHAR(40) NOT NULL,
     "description" VARCHAR(75) NOT NULL,
     "sample_unit" VARCHAR(50) NOT NULL,
+    "db_name" VARCHAR(50),
     "sample_interval" SMALLINT DEFAULT 5 NOT NULL,
     "sample_max_value" INTEGER,
     "aggregation_mode" TINYINT DEFAULT 0 NOT NULL,
