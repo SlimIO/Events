@@ -235,20 +235,10 @@ async function declareMetricIdentity(header, mic) {
     const query = "SELECT id, description, sample_interval as interval FROM metric_identity_card WHERE name=? AND entity_id=?";
     const row = await db.get(query, name, entityId);
 
-    async function createMetricDB(id) {
-        const mDB = await sqlite.open(join(METRICS_DIR, `${header.from}.db`));
-        await mDB.exec(
-            `CREATE TABLE IF NOT EXISTS "${id}" ("value" INTEGER NOT NULL, "harvestedAt" DATE NOT NULL);`);
-        mDB.close();
-        Events.executeCallback("publish", void 0, ["Metric", "create", [header.from, id]]);
-    }
-
     if (typeof row !== "undefined") {
         if (row.description !== desc || row.interval !== interval) {
             transact.open(Update, "mic", [desc, interval, row.id]);
         }
-        // Create Metrics table
-        setImmediate(() => createMetricDB(row.id).catch(console.error));
 
         return row.id;
     }
@@ -257,8 +247,12 @@ async function declareMetricIdentity(header, mic) {
         "INSERT INTO metric_identity_card (name, description, sample_unit, sample_interval, sample_max_value, entity_id) VALUES (?, ?, ?, ?, ?, @entityId)",
         name, desc, unit, interval, max, entityId);
 
-    // Create Metrics table
-    setImmediate(() => createMetricDB(lastID).catch(console.error));
+    // Create .db and table (if not exists).
+    const mDB = await sqlite.open(join(METRICS_DIR, `${header.from}.db`));
+    await mDB.exec(
+        `CREATE TABLE IF NOT EXISTS "${id}" ("value" INTEGER NOT NULL, "harvestedAt" DATE NOT NULL);`);
+    mDB.close();
+    Events.executeCallback("publish", void 0, ["Metric", "create", [header.from, id]]);
 
     return lastID;
 }
