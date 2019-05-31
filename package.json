@@ -4,6 +4,7 @@
   "description": "SlimIO - Events (Built-in Addon)",
   "main": "index.js",
   "scripts": {
+    "doc": "jsdoc -c ./jsdoc.json -r -R ./README.md -P ./package.json --verbose",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
@@ -36,6 +37,7 @@
     "@types/es6-shim": "^0.31.39",
     "eslint": "^5.16.0",
     "husky": "^2.3.0",
+    "jsdoc": "^3.6.2",
     "nyc": "^14.1.1"
   },
   "dependencies": {
