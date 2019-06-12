@@ -58,12 +58,13 @@ function dbShouldBeOpen() {
     }
 }
 
-async function getSubscriber(source, kind = "stats") {
-    const subscriber = await db.get("SELECT last as ts FROM subscribers WHERE source=? AND kind=?", source, kind);
+async function getSubscriber(source, target, kind = "stats") {
+    const subscriber = await db.get(
+        "SELECT last as ts FROM subscribers WHERE source=? AND target=? AND kind=?", source, target, kind);
     if (typeof subscriber !== "undefined") {
         return toUnixEpoch(subscriber.ts);
     }
-    await db.run("INSERT INTO subscribers (source) VALUES (?)", source);
+    await db.run("INSERT INTO subscribers (source, target, kind) VALUES (?)", source, target, kind);
 
     return toUnixEpoch(Date.now());
 }
@@ -320,7 +321,7 @@ async function getMIC(header, micId) {
  */
 async function getMICStats(header, micId, walkTimestamp = false) {
     const mic = await getMIC(header, micId);
-    const ts = await getSubscriber(header.from);
+    const ts = await getSubscriber(header.from, micId);
     console.log(`timestamp => ${ts}`);
 
     const metricDB = await sqlite.open(join(METRICS_DIR, `${mic.db_name}.db`));
@@ -336,7 +337,8 @@ async function getMICStats(header, micId, walkTimestamp = false) {
     }
 
     if (walkTimestamp) {
-        await db.run("UPDATE subscribers SET last=DATETIME('now') WHERE source=? AND kind=?", header.from, "stats");
+        await db.run(
+            "UPDATE subscribers SET last=DATETIME('now') WHERE source=? AND target=? AND kind=?", header.from, micId, "stats");
     }
 
     return result;
