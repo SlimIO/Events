@@ -66,7 +66,7 @@ async function getSubscriber(source, target, kind = "stats") {
     }
     await db.run("INSERT INTO subscribers (source, target, kind) VALUES (?)", source, target, kind);
 
-    return toUnixEpoch(Date.now());
+    return toUnixEpoch(new Date().getTime());
 }
 
 // Create EVENTS Addon!
@@ -329,7 +329,7 @@ async function getMICStats(header, micId, walkTimestamp = false) {
 
     try {
         const dbRes = await metricDB.get(
-            `SELECT count(*) AS rawCount FROM "${micId}" WHERE datetime(harvestedAt, 'unixepoch') < ?`, ts);
+            `SELECT count(*) AS rawCount FROM "${micId}" WHERE harvestedAt < ?`, ts);
         result.rawCount = dbRes.rawCount;
     }
     finally {

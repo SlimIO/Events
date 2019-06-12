@@ -5,7 +5,7 @@ function twoDigits(field) {
 function toUnixEpoch(timestamp) {
     const _d = new Date(timestamp);
 
-    const group1 = `${_d.getFullYear()}-${twoDigits(_d.getMonth() + 1)}-${twoDigits(_d.getDay())}`;
+    const group1 = `${_d.getFullYear()}-${twoDigits(_d.getMonth() + 1)}-${twoDigits(_d.getUTCDate())}`;
     const group2 = `${twoDigits(_d.getHours())}:${twoDigits(_d.getMinutes())}:${twoDigits(_d.getSeconds())}`;
 
     return `${group1} ${group2}`;
