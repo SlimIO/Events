@@ -59,3 +59,9 @@ CREATE TABLE IF NOT EXISTS "alarms" (
     "entity_id" INTEGER NOT NULL,
     CONSTRAINT fk_entity_id FOREIGN KEY("entity_id") REFERENCES entity("id") ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS "subscribers" (
+    "source" VARCHAR(60) NOT NULL,
+    "kind" VARCHAR(16) DEFAULT "stats" NOT NULL,
+    "last" DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL
+);

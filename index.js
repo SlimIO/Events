@@ -13,6 +13,9 @@ const Queue = require("@slimio/queue");
 const { assertEntity, assertMIC, assertAlarm, assertCorrelateID, createDirectory } = require("@slimio/utils");
 const TransactManager = require("@slimio/sqlite-transaction");
 
+// Require Internal Dependencies
+const { toUnixEpoch } = require("./src/utils");
+
 // CONSTANTS
 const DB_DIR = join(__dirname, "db");
 const METRICS_DIR = join(DB_DIR, "metrics");
@@ -53,6 +56,16 @@ function dbShouldBeOpen() {
     if (db === null) {
         throw new Error("Events database not open!");
     }
+}
+
+async function getSubscriber(source, kind = "stats") {
+    const subscriber = await db.get("SELECT last as ts FROM subscribers WHERE source=? AND kind=?", source, kind);
+    if (typeof subscriber !== "undefined") {
+        return toUnixEpoch(subscriber.ts);
+    }
+    await db.run("INSERT INTO subscribers (source) VALUES (?)", source);
+
+    return toUnixEpoch(Date.now());
 }
 
 // Create EVENTS Addon!
@@ -302,19 +315,28 @@ async function getMIC(header, micId) {
  * @desc Get a stats for a given MIC
  * @param {*} header Callback Header
  * @param {!Number} micId MetricIdentityCard ID
+ * @param {!Boolean} walkTimestamp update the subscriber timestamp
  * @returns {Promise<null | Object>}
  */
-async function getMICStats(header, micId) {
+async function getMICStats(header, micId, walkTimestamp = false) {
     const mic = await getMIC(header, micId);
+    const ts = await getSubscriber(header.from);
+    console.log(`timestamp => ${ts}`);
+
     const metricDB = await sqlite.open(join(METRICS_DIR, `${mic.db_name}.db`));
     const result = { rawCount: null };
 
     try {
-        const dbRes = await metricDB.get(`SELECT count(*) AS rawCount FROM "${micId}"`);
+        const dbRes = await metricDB.get(
+            `SELECT count(*) AS rawCount FROM "${micId}" WHERE datetime(harvestedAt, 'unixepoch') < ?`, ts);
         result.rawCount = dbRes.rawCount;
     }
     finally {
         metricDB.close();
+    }
+
+    if (walkTimestamp) {
+        await db.run("UPDATE subscribers SET last=DATETIME('now') WHERE source=? AND kind=?", header.from, "stats");
     }
 
     return result;
