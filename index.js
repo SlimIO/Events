@@ -60,11 +60,11 @@ function dbShouldBeOpen() {
 
 async function getSubscriber(source, target, kind = "stats") {
     const subscriber = await db.get(
-        "SELECT last as ts FROM subscribers WHERE source=? AND target=? AND kind=?", source, target, kind);
+        "SELECT last FROM subscribers WHERE source=? AND target=? AND kind=?", source, target, kind);
     if (typeof subscriber !== "undefined") {
-        return toUnixEpoch(subscriber.ts);
+        return toUnixEpoch(new Date(subscriber.last).getTime());
     }
-    await db.run("INSERT INTO subscribers (source, target, kind) VALUES (?)", source, target, kind);
+    await db.run("INSERT INTO subscribers (source, target, kind) VALUES (?, ?, ?)", source, target, kind);
 
     return toUnixEpoch(new Date().getTime());
 }
@@ -329,7 +329,7 @@ async function getMICStats(header, micId, walkTimestamp = false) {
 
     try {
         const dbRes = await metricDB.get(
-            `SELECT count(*) AS rawCount FROM "${micId}" WHERE harvestedAt < ?`, ts);
+            `SELECT count(*) AS rawCount FROM "${micId}" WHERE DATETIME(ROUND(harvestedAt/1000), "unixepoch") < ?`, ts);
         result.rawCount = dbRes.rawCount;
     }
     finally {
@@ -337,8 +337,9 @@ async function getMICStats(header, micId, walkTimestamp = false) {
     }
 
     if (walkTimestamp) {
+        const now = toUnixEpoch(new Date().getTime());
         await db.run(
-            "UPDATE subscribers SET last=DATETIME('now') WHERE source=? AND target=? AND kind=?", header.from, micId, "stats");
+            "UPDATE subscribers SET last=? WHERE source=? AND target=? AND kind=?", now, header.from, micId, "stats");
     }
 
     return result;
@@ -549,7 +550,9 @@ async function populateMetricsInterval() {
         console.time(`run_transact_${id}`);
         const mDB = await sqlite.open(join(METRICS_DIR, `${id}.db`));
         await mDB.run("BEGIN EXCLUSIVE TRANSACTION;");
-        await Promise.all(metrics.map((metric) => mDB.run(`INSERT INTO "${metric[0]}" VALUES(?, ?)`, metric[1], metric[2])));
+        await Promise.all(
+            metrics.map((metric) => mDB.run(`INSERT INTO "${metric[0]}" (value, harvestedAt) VALUES(?, ?)`, metric[1], metric[2]))
+        );
         await mDB.run("COMMIT TRANSACTION;");
         mDB.close();
         console.timeEnd(`run_transact_${id}`);
@@ -655,7 +658,6 @@ Events.registerCallback("declare_mic", declareMetricIdentity);
 Events.registerCallback("publish_metric", publishMetric);
 Events.registerCallback("get_mic_stats", getMICStats);
 Events.registerCallback("get_mic", getMIC);
-
 
 // Register alarms callback(s)
 Events.registerCallback("create_alarm", createAlarm);
