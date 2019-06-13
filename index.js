@@ -329,7 +329,7 @@ async function getMICStats(header, micId, walkTimestamp = false) {
 
     try {
         const dbRes = await metricDB.get(
-            `SELECT count(*) AS rawCount FROM "${micId}" WHERE DATETIME(ROUND(harvestedAt/1000), "unixepoch") < ?`, ts);
+            `SELECT count(*) AS rawCount FROM "${micId}" WHERE harvestedAt > ?`, ts);
         result.rawCount = dbRes.rawCount;
     }
     finally {
@@ -551,7 +551,11 @@ async function populateMetricsInterval() {
         const mDB = await sqlite.open(join(METRICS_DIR, `${id}.db`));
         await mDB.run("BEGIN EXCLUSIVE TRANSACTION;");
         await Promise.all(
-            metrics.map((metric) => mDB.run(`INSERT INTO "${metric[0]}" (value, harvestedAt) VALUES(?, ?)`, metric[1], metric[2]))
+            metrics.map((metric) => {
+                const epoch = toUnixEpoch(new Date(metric[2]).getTime());
+
+                return mDB.run(`INSERT INTO "${metric[0]}" (value, harvestedAt) VALUES(?, ?)`, metric[1], epoch);
+            })
         );
         await mDB.run("COMMIT TRANSACTION;");
         mDB.close();
