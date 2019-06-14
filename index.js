@@ -15,6 +15,7 @@ const TransactManager = require("@slimio/sqlite-transaction");
 
 // Require Internal Dependencies
 const { toUnixEpoch } = require("./src/utils");
+const SharedDB = require("./src/sharedDb");
 
 // CONSTANTS
 const DB_DIR = join(__dirname, "db");
@@ -28,6 +29,7 @@ const { Insert, Update, Delete } = TransactManager.Actions;
 let db = null;
 let interval = null;
 let sanity = null;
+const openShareDB = new SharedDB();
 
 /**
  * @type {TransactManager}
@@ -322,18 +324,18 @@ async function getMIC(header, micId) {
 async function getMICStats(header, micId, walkTimestamp = false) {
     const mic = await getMIC(header, micId);
     const ts = await getSubscriber(header.from, micId);
-    console.log(`timestamp => ${ts}`);
 
-    const metricDB = await sqlite.open(join(METRICS_DIR, `${mic.db_name}.db`));
+    const metricDB = await openShareDB.open(mic.db_name);
     const result = { rawCount: null };
 
     try {
+        // TODO: add count as type + level
         const dbRes = await metricDB.get(
             `SELECT count(*) AS rawCount FROM "${micId}" WHERE harvestedAt > ?`, ts);
         result.rawCount = dbRes.rawCount;
     }
     finally {
-        metricDB.close();
+        openShareDB.close(mic.db_name);
     }
 
     if (walkTimestamp) {
