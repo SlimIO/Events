@@ -312,6 +312,30 @@ async function getMIC(header, micId) {
     return db.get("SELECT * FROM metric_identity_card WHERE id=?", micId);
 }
 
+async function pullMIC(header, micId) {
+    const mic = await getMIC(header, micId);
+    const ts = await getSubscriber(header.from, micId, "pull");
+    const now = toUnixEpoch(new Date().getTime());
+
+    const metricDB = await openShareDB.open(mic.db_name);
+
+    try {
+        const result = await metricDB.get(
+            `SELECT * FROM "${micId}" WHERE harvestedAt < ? AND harvestedAt > ?`, now, ts);
+
+        await db.run(
+            "UPDATE subscribers SET last=? WHERE source=? AND target=? AND kind=?", now, header.from, micId, "pull");
+        openShareDB.close(mic.db_name);
+
+        return result;
+    }
+    catch (err) {
+        openShareDB.close(mic.db_name);
+
+        return null;
+    }
+}
+
 /**
  * @async
  * @function getMICStats
@@ -333,8 +357,9 @@ async function getMICStats(header, micId, walkTimestamp = false) {
         const dbRes = await metricDB.get(
             `SELECT count(*) AS rawCount FROM "${micId}" WHERE harvestedAt > ?`, ts);
         result.rawCount = dbRes.rawCount;
+        openShareDB.close(mic.db_name);
     }
-    finally {
+    catch (err) {
         openShareDB.close(mic.db_name);
     }
 
@@ -653,16 +678,19 @@ Events.registerCallback("register_event_type", registerEventType);
 Events.registerCallback("publish", publish);
 Events.registerCallback("subscribe", subscribe);
 
-// Register metric callback(s)
+// Register entity callback(s)
 Events.registerCallback("declare_entity", declareEntity);
 Events.registerCallback("declare_entity_descriptor", declareEntityDescriptor);
 Events.registerCallback("get_descriptors", getDescriptors);
 Events.registerCallback("search_entities", searchEntities);
 Events.registerCallback("get_entity_by_id", getEntityByID);
 Events.registerCallback("remove_entity", removeEntity);
+
+// Register mic callback(s)
 Events.registerCallback("declare_mic", declareMetricIdentity);
 Events.registerCallback("publish_metric", publishMetric);
 Events.registerCallback("get_mic_stats", getMICStats);
+Events.registerCallback("pull_mic", pullMIC);
 Events.registerCallback("get_mic", getMIC);
 
 // Register alarms callback(s)
