@@ -208,6 +208,14 @@ async function searchEntities(header, searchOptions = Object.create(null)) {
     return rawResult;
 }
 
+/**
+ * @async
+ * @function getEntityByID
+ * @desc Get a given entity by his ID.
+ * @param {*} header Callback Header
+ * @param {!Number} entityId entity id
+ * @returns {Promise<any>}
+ */
 async function getEntityByID(header, entityId) {
     dbShouldBeOpen();
     if (typeof entityId !== "number") {
@@ -312,6 +320,14 @@ async function getMIC(header, micId) {
     return db.get("SELECT * FROM metric_identity_card WHERE id=?", micId);
 }
 
+/**
+ * @async
+ * @function pullMIC
+ * @desc Pull MIC from a given mic DB
+ * @param {*} header Callback Header
+ * @param {!Number} micId MetricIdentityCard ID
+ * @returns {Promise<any>}
+ */
 async function pullMIC(header, micId) {
     const mic = await getMIC(header, micId);
     const ts = await getSubscriber(header.from, micId, "pull");
@@ -543,6 +559,22 @@ async function publish(header, [type, name, data = ""]) {
 }
 
 /**
+ * @function summaryStats
+ * @desc Get the global (local) stats for events (alarms, metrics, entities..).
+ * @param {*} header Callback Header
+ * @returns {Promise<void>}
+ */
+async function summaryStats(header) {
+    const stats = await Promise.all([
+        db.get("SELECT count(*) AS entity_count FROM entity"),
+        db.get("SELECT count(*) AS alarms_count FROM alarms"),
+        db.get("SELECT count(*) AS mic_count FROM metric_identity_card")
+    ]);
+
+    return Object.assign({}, ...stats);
+}
+
+/**
  * @function subscribe
  * @desc Subscribe to event
  * @param {*} header Callback Header
@@ -673,10 +705,11 @@ Events.on("stop", () => {
     db.close();
 });
 
-// Register event callback(s)
+// Register others callback(s)
 Events.registerCallback("register_event_type", registerEventType);
 Events.registerCallback("publish", publish);
 Events.registerCallback("subscribe", subscribe);
+Events.registerCallback("summary_stats", summaryStats);
 
 // Register entity callback(s)
 Events.registerCallback("declare_entity", declareEntity);
