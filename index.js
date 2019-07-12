@@ -51,6 +51,9 @@ const AVAILABLE_TYPES = new Map([
 /** @type {Map<string, Set<string>>} */
 const SUBSCRIBERS = new Map();
 
+// Create EVENTS Addon!
+const Events = new Addon("events", { verbose: true });
+
 /**
  * @function dbShouldBeOpen
  * @description The database should be open
@@ -80,9 +83,6 @@ async function getSubscriber(source, target, kind = "stats") {
 
     return toUnixEpoch(new Date().getTime());
 }
-
-// Create EVENTS Addon!
-const Events = new Addon("events");
 
 /**
  * @async
@@ -262,7 +262,6 @@ async function removeEntity(header, entityId) {
  */
 async function declareMetricIdentity(header, mic) {
     dbShouldBeOpen();
-    // console.log(mic);
     assertMIC(mic);
     const { name, description: desc = "", unit, interval = 5, max = null, entityId } = mic;
 
@@ -309,7 +308,6 @@ async function publishMetric(header, micId, [value, harvestedAt = Date.now()]) {
         throw new TypeError("metric value should be typeof number!");
     }
 
-    // console.log(`Enqueue new metric for mic ${micId} with value ${value}`);
     Q_METRICS.enqueue(header.from, [micId, value, harvestedAt]);
 }
 
@@ -471,7 +469,6 @@ async function getAlarms(header, cid) {
  * @returns {Promise<void>}
  */
 async function getAlarmsOccurence(header, cid, { time, severity = 0 } = {}) {
-    console.log(`[EVENT] getAlarmsOccurence of : ${cid}`);
     dbShouldBeOpen();
     assertCorrelateID(cid);
     if (!is.number(time)) {
@@ -484,7 +481,6 @@ async function getAlarmsOccurence(header, cid, { time, severity = 0 } = {}) {
         "SELECT COUNT(*) AS result FROM events WHERE type_id=3 AND name=\"update\" AND data=? AND createdAt BETWEEN datetime(?, 'unixepoch') AND datetime(?, 'unixepoch')",
         cid, startDate, dateNow
     );
-    console.log(alarms);
 
     return alarms.result;
 }
@@ -608,7 +604,7 @@ async function subscribe(header, subjectName) {
  * @returns {Promise<void>}
  */
 async function populateMetricsInterval() {
-    console.log("Publisher interval triggered!");
+    Events.logger.writeLine("Publisher interval triggered!");
 
     // Handle Metrics DBs transactions
     for (const id of Q_METRICS.ids()) {
@@ -635,7 +631,6 @@ async function populateMetricsInterval() {
 
 // Addon "Start" event listener
 Events.on("start", async() => {
-    console.log("[EVENTS] Start event triggered!");
     // Create DB Dir
     await createDirectory(DB_DIR);
     await createDirectory(METRICS_DIR);
@@ -688,7 +683,7 @@ Events.on("start", async() => {
     // Setup intervals
     interval = timer.setInterval(populateMetricsInterval, POPULATE_INTERVAL_MS);
     sanity = timer.setInterval(async() => {
-        console.log("[Events] Health interval triggered");
+        Events.logger.writeLine("Health interval triggered");
 
         const evtTypes = await db.all("SELECT name FROM events_type");
         const typesName = evtTypes.map((row) => row.name);
