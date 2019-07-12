@@ -1,3 +1,5 @@
+"use strict";
+
 // Require Node.js Dependencies
 const { join } = require("path");
 
@@ -10,12 +12,9 @@ const METRICS_DIR = join(__dirname, "..", "db", "metrics");
 // Symbols
 const SymList = Symbol("SymList");
 
-/**
- * @class SharedDB
- */
 class SharedDB {
     /**
-     * @constructor
+     * @class SharedDB
      */
     constructor() {
         Object.defineProperty(this, SymList, {
@@ -25,9 +24,9 @@ class SharedDB {
 
     /**
      * @async
-     * @method open
+     * @function open
      * @memberof SharedDB#
-     * @param {!String} name metrics db name
+     * @param {!string} name metrics db name
      * @returns {Promise<void>}
      */
     async open(name) {
@@ -44,9 +43,9 @@ class SharedDB {
     }
 
     /**
-     * @method close
+     * @function close
      * @memberof SharedDB#
-     * @param {!String} name metrics db name
+     * @param {!string} name metrics db name
      * @returns {void}
      */
     close(name) {

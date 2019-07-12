@@ -1,3 +1,5 @@
+"use strict";
+
 // Require Node.js Dependencies
 const { join } = require("path");
 const { readFile } = require("fs").promises;
@@ -39,20 +41,20 @@ let transact = null;
 // QUEUES & MAPS
 const Q_METRICS = new Queue();
 
-/** @type {Map<String, Number>} */
+/** @type {Map<string, number>} */
 const AVAILABLE_TYPES = new Map([
     ["Addon", 1],
     ["Alarm", 2],
     ["Metric", 3]
 ]);
 
-/** @type {Map<String, Set<String>>} */
+/** @type {Map<string, Set<string>>} */
 const SUBSCRIBERS = new Map();
 
 /**
- * @func dbShouldBeOpen
- * @desc The database should be open
- * @return {void}
+ * @function dbShouldBeOpen
+ * @description The database should be open
+ * @returns {void}
  */
 function dbShouldBeOpen() {
     if (db === null) {
@@ -60,6 +62,14 @@ function dbShouldBeOpen() {
     }
 }
 
+/**
+ * @async
+ * @function getSubscriber
+ * @param {string} source source
+ * @param {string} target target
+ * @param {string} [kind="stats"] kind
+ * @returns {Promise<string>}
+ */
 async function getSubscriber(source, target, kind = "stats") {
     const subscriber = await db.get(
         "SELECT last FROM subscribers WHERE source=? AND target=? AND kind=?", source, target, kind);
@@ -77,9 +87,9 @@ const Events = new Addon("events");
 /**
  * @async
  * @function declareEntityDescriptor
- * @desc Declare one descriptor for a given entity!
+ * @description Declare one descriptor for a given entity!
  * @param {*} header Callback Header
- * @param {!Number} entityId entityId
+ * @param {!number} entityId entityId
  * @param {!Array} KeyValue descriptor key
  * @returns {Promise<void>}
  */
@@ -99,10 +109,10 @@ async function declareEntityDescriptor(header, entityId, [key, value]) {
 /**
  * @async
  * @function getDescriptors
- * @desc Get one or all descriptors of a given entity
+ * @description Get one or all descriptors of a given entity
  * @param {*} header Callback Header
- * @param {!Number} entityId entityId
- * @param {String=} key descriptor key
+ * @param {!number} entityId entityId
+ * @param {string} [key] descriptor key
  * @returns {Promise<void>}
  */
 async function getDescriptors(header, entityId, key) {
@@ -123,17 +133,17 @@ async function getDescriptors(header, entityId, key) {
 /**
  * @async
  * @function declareEntity
- * @desc Declare a new entity
+ * @description Declare a new entity
  * @param {*} header Callback Header
  * @param {*} entity entity
- * @returns {Promise<Number>}
+ * @returns {Promise<number>}
  */
 async function declareEntity(header, entity) {
     dbShouldBeOpen();
     assertEntity(entity);
     const { name, parent = 1, description = null, descriptors = {} } = entity;
 
-    /** @type {{id: Number, description: String}} */
+    /** @type {{id: number, description: string}} */
     let row;
     if (parent === null) {
         row = await db.get("SELECT id, description FROM entity WHERE name=? AND parent IS NULL", name);
@@ -177,10 +187,10 @@ async function declareEntity(header, entity) {
 /**
  * @async
  * @function searchEntities
- * @desc Search one or many entities by matching search options
+ * @description Search one or many entities by matching search options
  * @param {*} header Callback Header
- * @param {Object} searchOptions search Options
- * @returns {Promise<Number>}
+ * @param {object} searchOptions search Options
+ * @returns {Promise<number>}
  */
 async function searchEntities(header, searchOptions = Object.create(null)) {
     dbShouldBeOpen();
@@ -211,9 +221,9 @@ async function searchEntities(header, searchOptions = Object.create(null)) {
 /**
  * @async
  * @function getEntityByID
- * @desc Get a given entity by his ID.
+ * @description Get a given entity by his ID.
  * @param {*} header Callback Header
- * @param {!Number} entityId entity id
+ * @param {!number} entityId entity id
  * @returns {Promise<any>}
  */
 async function getEntityByID(header, entityId) {
@@ -228,9 +238,9 @@ async function getEntityByID(header, entityId) {
 /**
  * @async
  * @function removeEntity
- * @desc Remove an entity by his id!
+ * @description Remove an entity by his id!
  * @param {*} header Callback Header
- * @param {!Number} entityId entityId
+ * @param {!number} entityId entityId
  * @returns {Promise<void>}
  */
 async function removeEntity(header, entityId) {
@@ -245,10 +255,10 @@ async function removeEntity(header, entityId) {
 /**
  * @async
  * @function declareMetricIdentity
- * @desc Remove an entity by his id!
+ * @description Remove an entity by his id!
  * @param {*} header Callback Header
  * @param {*} mic MetricIdentityCard
- * @returns {Promise<Number>}
+ * @returns {Promise<number>}
  */
 async function declareMetricIdentity(header, mic) {
     dbShouldBeOpen();
@@ -284,9 +294,9 @@ async function declareMetricIdentity(header, mic) {
 /**
  * @async
  * @function publishMetric
- * @desc Publish a new metric (to be queue for population).
+ * @description Publish a new metric (to be queue for population).
  * @param {*} header Callback Header
- * @param {!Number} micId MetricIdentityCard ID
+ * @param {!number} micId MetricIdentityCard ID
  * @param {!Array} metricValue metric Array value
  * @returns {Promise<void>}
  */
@@ -306,10 +316,10 @@ async function publishMetric(header, micId, [value, harvestedAt = Date.now()]) {
 /**
  * @async
  * @function getMIC
- * @desc Get a metric identity card from DB.
+ * @description Get a metric identity card from DB.
  * @param {*} header Callback Header
- * @param {!Number} micId MetricIdentityCard ID
- * @returns {Promise<Object>}
+ * @param {!number} micId MetricIdentityCard ID
+ * @returns {Promise<object>}
  */
 async function getMIC(header, micId) {
     dbShouldBeOpen();
@@ -323,9 +333,9 @@ async function getMIC(header, micId) {
 /**
  * @async
  * @function pullMIC
- * @desc Pull MIC from a given mic DB
+ * @description Pull MIC from a given mic DB
  * @param {*} header Callback Header
- * @param {!Number} micId MetricIdentityCard ID
+ * @param {!number} micId MetricIdentityCard ID
  * @returns {Promise<any>}
  */
 async function pullMIC(header, micId) {
@@ -355,11 +365,11 @@ async function pullMIC(header, micId) {
 /**
  * @async
  * @function getMICStats
- * @desc Get a stats for a given MIC
+ * @description Get a stats for a given MIC
  * @param {*} header Callback Header
- * @param {!Number} micId MetricIdentityCard ID
- * @param {!Boolean} walkTimestamp update the subscriber timestamp
- * @returns {Promise<null | Object>}
+ * @param {!number} micId MetricIdentityCard ID
+ * @param {!boolean} walkTimestamp update the subscriber timestamp
+ * @returns {Promise<null|object>}
  */
 async function getMICStats(header, micId, walkTimestamp = false) {
     const mic = await getMIC(header, micId);
@@ -391,10 +401,10 @@ async function getMICStats(header, micId, walkTimestamp = false) {
 /**
  * @async
  * @function createAlarm
- * @desc Create a new Alarm
+ * @description Create a new Alarm
  * @param {*} header Callback Header
  * @param {*} alarm Alarm Object
- * @returns {Promise<Boolean>}
+ * @returns {Promise<boolean>}
  */
 async function createAlarm(header, alarm) {
     dbShouldBeOpen();
@@ -427,9 +437,9 @@ async function createAlarm(header, alarm) {
 /**
  * @async
  * @function getAlarms
- * @desc Get all or one alarms
+ * @description Get all or one alarms
  * @param {*} header Callback Header
- * @param {String=} cid Alarm Correlate ID
+ * @param {string} [cid] Alarm Correlate ID
  * @returns {Promise<void>}
  */
 async function getAlarms(header, cid) {
@@ -452,14 +462,15 @@ async function getAlarms(header, cid) {
 /**
  * @async
  * @function getAlarmsOccurence
- * @desc Get all alarms occurence between 2 times
+ * @description Get all alarms occurence between 2 times
  * @param {*} header Callback Header
- * @param {String=} cid Alarm Correlate ID
- * @param {Number=} time Occurence time in minute
- * @param {Number=} severity Lower severity to check
+ * @param {string} [cid] Alarm Correlate ID
+ * @param {object} [options]
+ * @param {number} [options.time] Occurence time in minute
+ * @param {number} [options.severity] Lower severity to check
  * @returns {Promise<void>}
  */
-async function getAlarmsOccurence(header, cid, { time, severity = 0 }) {
+async function getAlarmsOccurence(header, cid, { time, severity = 0 } = {}) {
     console.log(`[EVENT] getAlarmsOccurence of : ${cid}`);
     dbShouldBeOpen();
     assertCorrelateID(cid);
@@ -481,9 +492,9 @@ async function getAlarmsOccurence(header, cid, { time, severity = 0 }) {
 /**
  * @async
  * @function removeAlarm
- * @desc Remove one alarm
+ * @description Remove one alarm
  * @param {*} header Callback Header
- * @param {!String} cid Alarm Correlate ID
+ * @param {!string} cid Alarm Correlate ID
  * @returns {Promise<void>}
  */
 async function removeAlarm(header, cid) {
@@ -496,10 +507,10 @@ async function removeAlarm(header, cid) {
 
 /**
  * @function registerEventType
- * @desc Register event type
+ * @description Register event type
  * @param {*} header Callback Header
- * @param {!String} name event name
- * @returns {Promise<Number>}
+ * @param {!string} name event name
+ * @returns {Promise<number>}
  */
 async function registerEventType(header, name) {
     dbShouldBeOpen();
@@ -522,7 +533,7 @@ async function registerEventType(header, name) {
 
 /**
  * @function publish
- * @desc Publish a new event
+ * @description Publish a new event
  * @param {*} header Callback Header
  * @param {!Array} event event
  * @returns {Promise<void>}
@@ -560,7 +571,7 @@ async function publish(header, [type, name, data = ""]) {
 
 /**
  * @function summaryStats
- * @desc Get the global (local) stats for events (alarms, metrics, entities..).
+ * @description Get the global (local) stats for events (alarms, metrics, entities..).
  * @param {*} header Callback Header
  * @returns {Promise<void>}
  */
@@ -576,9 +587,9 @@ async function summaryStats(header) {
 
 /**
  * @function subscribe
- * @desc Subscribe to event
+ * @description Subscribe to event
  * @param {*} header Callback Header
- * @param {!String} subjectName Subject name
+ * @param {!string} subjectName Subject name
  * @returns {Promise<void>}
  */
 async function subscribe(header, subjectName) {
@@ -593,7 +604,7 @@ async function subscribe(header, subjectName) {
 
 /**
  * @function populateMetricsInterval
- * @desc Metrics populate interval
+ * @description Metrics populate interval
  * @returns {Promise<void>}
  */
 async function populateMetricsInterval() {

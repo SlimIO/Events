@@ -1,7 +1,19 @@
+"use strict";
+
+/**
+ * @function twoDigits
+ * @param {number | string} field field
+ * @returns {string}
+ */
 function twoDigits(field) {
     return `0${field}`.slice(-2);
 }
 
+/**
+ * @function toUnixEpoch
+ * @param {!number} timestamp
+ * @returns {string}
+ */
 function toUnixEpoch(timestamp) {
     const _d = new Date(timestamp);
 
