@@ -36,6 +36,14 @@
     "url": "https://github.com/SlimIO/Events/issues"
   },
   "homepage": "https://github.com/SlimIO/Events#readme",
+  "nyc": {
+    "check-coverage": true,
+    "per-file": false,
+    "lines": 98,
+    "statements": 98,
+    "functions": 98,
+    "branches": 90
+  },
   "devDependencies": {
     "@commitlint/cli": "^8.0.0",
     "@commitlint/config-conventional": "^8.0.0",
