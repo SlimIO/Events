@@ -8,7 +8,9 @@
     "source": {
         "include": [
             "index.js",
-            "src/transactManager.js"
+            "src/transactManager.js",
+            "src/sharedDb.js",
+            "src/utils.js"
         ],
         "exclude": [
             "node_modules",
