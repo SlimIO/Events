@@ -23,6 +23,12 @@
     "SlimIO",
     "events"
   ],
+  "files": [
+    "index.js",
+    "slimio.toml",
+    "src",
+    "sql"
+  ],
   "author": "SlimIO",
   "license": "MIT",
   "bugs": {
