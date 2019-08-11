@@ -2,7 +2,7 @@
 
 // Require Node.js Dependencies
 const { join } = require("path");
-const { readFile } = require("fs").promises;
+const { readFile, mkdir } = require("fs").promises;
 const os = require("os");
 
 // Require Third-Party Dependencies
@@ -12,7 +12,7 @@ const Addon = require("@slimio/addon");
 const timer = require("@slimio/timer");
 const is = require("@slimio/is");
 const Queue = require("@slimio/queue");
-const { assertEntity, assertMIC, assertAlarm, assertCorrelateID, createDirectory } = require("@slimio/utils");
+const { assertEntity, assertMIC, assertAlarm, assertCorrelateID } = require("@slimio/utils");
 const TransactManager = require("@slimio/sqlite-transaction");
 
 // Require Internal Dependencies
@@ -632,15 +632,16 @@ async function populateMetricsInterval() {
 // Addon "Start" event listener
 Events.on("start", async() => {
     // Create DB Dir
-    await createDirectory(DB_DIR);
-    await createDirectory(METRICS_DIR);
+    await mkdir(METRICS_DIR, { recursive: true });
 
     // Open SQLite DB
     db = await sqlite.open(join(DB_DIR, "events.db"));
     await db.exec(await readFile(join(__dirname, "sql", "events.sql"), "utf-8"));
-    await registerEventType(void 0, "Addon");
-    await registerEventType(void 0, "Metric");
-    await registerEventType(void 0, "Alarm");
+    await Promise.all([
+        registerEventType(void 0, "Addon"),
+        registerEventType(void 0, "Metric"),
+        registerEventType(void 0, "Alarm")
+    ]);
 
     // Hydrate events type (Memory Map).
     const types = await db.all("SELECT id, name from events_type");
