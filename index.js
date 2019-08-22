@@ -7,7 +7,7 @@ const os = require("os");
 
 // Require Third-Party Dependencies
 const sqlite = require("sqlite");
-const hyperid = require("hyperid");
+const uuid = require("uuid/v4");
 const Addon = require("@slimio/addon");
 const timer = require("@slimio/timer");
 const is = require("@slimio/is");
@@ -169,7 +169,7 @@ async function declareEntity(header, entity) {
     // Else, create a new row for the entity!
     const { lastID } = await db.run(
         "INSERT INTO entity (uuid, name, parent, description) VALUES(?, ?, ?, ?)",
-        hyperid()(), name, parent, description
+        uuid(), name, parent, description
     );
     if (typeof lastID !== "number") {
         throw new Error("Failed to insert new entity!");
@@ -415,7 +415,7 @@ async function createAlarm(header, alarm) {
     if (typeof row === "undefined") {
         await db.run(
             "INSERT INTO alarms (uuid, message, severity, correlate_key, entity_id) VALUES(?, ?, ?, ?, ?)",
-            hyperid()(), message, severity, correlateKey, entityId
+            uuid(), message, severity, correlateKey, entityId
         );
         Events.executeCallback("publish", void 0, ["Alarm", "open", `${entityId}#${correlateKey}`]);
 
