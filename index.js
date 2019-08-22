@@ -52,7 +52,7 @@ const AVAILABLE_TYPES = new Map([
 const SUBSCRIBERS = new Map();
 
 // Create EVENTS Addon!
-const Events = new Addon("events", { verbose: true });
+const Events = new Addon("events");
 
 /**
  * @function dbShouldBeOpen
