@@ -604,7 +604,7 @@ async function subscribe(header, subjectName) {
  * @returns {Promise<void>}
  */
 async function populateMetricsInterval() {
-    Events.logger.writeLine("Publisher interval triggered!");
+    // Events.logger.writeLine("Publisher interval triggered!");
 
     // Handle Metrics DBs transactions
     for (const id of Q_METRICS.ids()) {
