@@ -280,7 +280,7 @@ async function declareMetricIdentity(header, mic) {
     // Create .db and table (if not exists).
     const mDB = await sqlite.open(join(METRICS_DIR, `${header.from}.db`));
     await mDB.exec(
-        `CREATE TABLE IF NOT EXISTS "${lastID}" ("value" INTEGER NOT NULL, "harvestedAt" DATE NOT NULL);`);
+        `CREATE TABLE IF NOT EXISTS "${lastID}_${name}" ("value" INTEGER NOT NULL, "harvestedAt" DATE NOT NULL);`);
     mDB.close();
     Events.executeCallback("publish", void 0, ["Metric", "create", [header.from, lastID]]);
 
@@ -305,7 +305,12 @@ async function publishMetric(header, micId, [value, harvestedAt = Date.now()]) {
         throw new TypeError("metric value should be typeof number!");
     }
 
-    Q_METRICS.enqueue(header.from, [micId, value, harvestedAt]);
+    const row = await db.get("SELECT name FROM metric_identity_card WHERE id=?", micId);
+    if (typeof row === "undefined") {
+        throw new Error(`Unable to found metric card with id ${micId}`);
+    }
+
+    Q_METRICS.enqueue(header.from, [`${micId}_${row.name}`, value, harvestedAt]);
 }
 
 /**
@@ -615,9 +620,10 @@ async function populateMetricsInterval() {
         await mDB.run("BEGIN EXCLUSIVE TRANSACTION;");
         await Promise.all(
             metrics.map((metric) => {
-                const epoch = toUnixEpoch(new Date(metric[2]).getTime());
+                const [tableName, value, harvestedAt] = metric;
+                const epoch = toUnixEpoch(new Date(harvestedAt).getTime());
 
-                return mDB.run(`INSERT INTO "${metric[0]}" (value, harvestedAt) VALUES(?, ?)`, metric[1], epoch);
+                return mDB.run(`INSERT INTO "${tableName}" (value, harvestedAt) VALUES(?, ?)`, value, epoch);
             })
         );
         await mDB.run("COMMIT TRANSACTION;");
