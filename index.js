@@ -88,7 +88,7 @@ async function getSubscriber(source, target, kind = "stats") {
  * @async
  * @function declareEntityDescriptor
  * @description Declare one descriptor for a given entity!
- * @param {*} header Callback Header
+ * @param {!Addon.CallbackHeader} header Callback Header
  * @param {!number} entityId entityId
  * @param {!Array} KeyValue descriptor key
  * @returns {Promise<void>}
@@ -110,7 +110,7 @@ async function declareEntityDescriptor(header, entityId, [key, value]) {
  * @async
  * @function getDescriptors
  * @description Get one or all descriptors of a given entity
- * @param {*} header Callback Header
+ * @param {!Addon.CallbackHeader} header Callback Header
  * @param {!number} entityId entityId
  * @param {string} [key] descriptor key
  * @returns {Promise<void>}
@@ -134,7 +134,7 @@ async function getDescriptors(header, entityId, key) {
  * @async
  * @function declareEntity
  * @description Declare a new entity
- * @param {*} header Callback Header
+ * @param {!Addon.CallbackHeader} header Callback Header
  * @param {*} entity entity
  * @returns {Promise<number>}
  */
@@ -188,7 +188,7 @@ async function declareEntity(header, entity) {
  * @async
  * @function searchEntities
  * @description Search one or many entities by matching search options
- * @param {*} header Callback Header
+ * @param {!Addon.CallbackHeader} header Callback Header
  * @param {object} searchOptions search Options
  * @returns {Promise<number>}
  */
@@ -222,7 +222,7 @@ async function searchEntities(header, searchOptions = Object.create(null)) {
  * @async
  * @function getEntityByID
  * @description Get a given entity by his ID.
- * @param {*} header Callback Header
+ * @param {!Addon.CallbackHeader} header Callback Header
  * @param {!number} entityId entity id
  * @returns {Promise<any>}
  */
@@ -239,7 +239,7 @@ async function getEntityByID(header, entityId) {
  * @async
  * @function removeEntity
  * @description Remove an entity by his id!
- * @param {*} header Callback Header
+ * @param {!Addon.CallbackHeader} header Callback Header
  * @param {!number} entityId entityId
  * @returns {Promise<void>}
  */
@@ -256,7 +256,7 @@ async function removeEntity(header, entityId) {
  * @async
  * @function declareMetricIdentity
  * @description Remove an entity by his id!
- * @param {*} header Callback Header
+ * @param {!Addon.CallbackHeader} header Callback Header
  * @param {*} mic MetricIdentityCard
  * @returns {Promise<number>}
  */
@@ -294,7 +294,7 @@ async function declareMetricIdentity(header, mic) {
  * @async
  * @function publishMetric
  * @description Publish a new metric (to be queue for population).
- * @param {*} header Callback Header
+ * @param {!Addon.CallbackHeader} header Callback Header
  * @param {!number} micId MetricIdentityCard ID
  * @param {!Array} metricValue metric Array value
  * @returns {Promise<void>}
@@ -315,7 +315,7 @@ async function publishMetric(header, micId, [value, harvestedAt = Date.now()]) {
  * @async
  * @function getMIC
  * @description Get a metric identity card from DB.
- * @param {*} header Callback Header
+ * @param {!Addon.CallbackHeader} header Callback Header
  * @param {!number} micId MetricIdentityCard ID
  * @returns {Promise<object>}
  */
@@ -332,7 +332,7 @@ async function getMIC(header, micId) {
  * @async
  * @function pullMIC
  * @description Pull MIC from a given mic DB
- * @param {*} header Callback Header
+ * @param {!Addon.CallbackHeader} header Callback Header
  * @param {!number} micId MetricIdentityCard ID
  * @returns {Promise<any>}
  */
@@ -364,7 +364,7 @@ async function pullMIC(header, micId) {
  * @async
  * @function getMICStats
  * @description Get a stats for a given MIC
- * @param {*} header Callback Header
+ * @param {!Addon.CallbackHeader} header Callback Header
  * @param {!number} micId MetricIdentityCard ID
  * @param {!boolean} walkTimestamp update the subscriber timestamp
  * @returns {Promise<null|object>}
@@ -400,7 +400,7 @@ async function getMICStats(header, micId, walkTimestamp = false) {
  * @async
  * @function createAlarm
  * @description Create a new Alarm
- * @param {*} header Callback Header
+ * @param {!Addon.CallbackHeader} header Callback Header
  * @param {*} alarm Alarm Object
  * @returns {Promise<boolean>}
  */
@@ -436,7 +436,7 @@ async function createAlarm(header, alarm) {
  * @async
  * @function getAlarms
  * @description Get all or one alarms
- * @param {*} header Callback Header
+ * @param {!Addon.CallbackHeader} header Callback Header
  * @param {string} [cid] Alarm Correlate ID
  * @returns {Promise<void>}
  */
@@ -461,7 +461,7 @@ async function getAlarms(header, cid) {
  * @async
  * @function getAlarmsOccurence
  * @description Get all alarms occurence between 2 times
- * @param {*} header Callback Header
+ * @param {!Addon.CallbackHeader} header Callback Header
  * @param {string} [cid] Alarm Correlate ID
  * @param {object} [options]
  * @param {number} [options.time] Occurence time in minute
@@ -489,7 +489,7 @@ async function getAlarmsOccurence(header, cid, { time, severity = 0 } = {}) {
  * @async
  * @function removeAlarm
  * @description Remove one alarm
- * @param {*} header Callback Header
+ * @param {!Addon.CallbackHeader} header Callback Header
  * @param {!string} cid Alarm Correlate ID
  * @returns {Promise<void>}
  */
@@ -504,7 +504,7 @@ async function removeAlarm(header, cid) {
 /**
  * @function registerEventType
  * @description Register event type
- * @param {*} header Callback Header
+ * @param {!Addon.CallbackHeader} header Callback Header
  * @param {!string} name event name
  * @returns {Promise<number>}
  */
@@ -530,7 +530,7 @@ async function registerEventType(header, name) {
 /**
  * @function publish
  * @description Publish a new event
- * @param {*} header Callback Header
+ * @param {!Addon.CallbackHeader} header Callback Header
  * @param {!Array} event event
  * @returns {Promise<void>}
  */
@@ -568,7 +568,7 @@ async function publish(header, [type, name, data = ""]) {
 /**
  * @function summaryStats
  * @description Get the global (local) stats for events (alarms, metrics, entities..).
- * @param {*} header Callback Header
+ * @param {!Addon.CallbackHeader} header Callback Header
  * @returns {Promise<void>}
  */
 async function summaryStats(header) {
@@ -584,7 +584,7 @@ async function summaryStats(header) {
 /**
  * @function subscribe
  * @description Subscribe to event
- * @param {*} header Callback Header
+ * @param {!Addon.CallbackHeader} header Callback Header
  * @param {!string} subjectName Subject name
  * @returns {Promise<void>}
  */
