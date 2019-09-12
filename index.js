@@ -684,8 +684,6 @@ Events.on("start", async() => {
     // Setup intervals
     interval = timer.setInterval(populateMetricsInterval, POPULATE_INTERVAL_MS);
     sanity = timer.setInterval(async() => {
-        Events.logger.writeLine("Health interval triggered");
-
         const evtTypes = await db.all("SELECT name FROM events_type");
         const typesName = evtTypes.map((row) => row.name);
 
