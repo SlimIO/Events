@@ -9,7 +9,6 @@ const os = require("os");
 const sqlite = require("sqlite");
 const uuid = require("uuid/v4");
 const Addon = require("@slimio/addon");
-const timer = require("@slimio/timer");
 const is = require("@slimio/is");
 const Queue = require("@slimio/queue");
 const { assertEntity, assertMIC, assertAlarm, assertCorrelateID } = require("@slimio/utils");
@@ -29,8 +28,6 @@ const { Insert, Update, Delete } = TransactManager.Actions;
 
 // GLOBALS
 let db = null;
-let interval = null;
-let sanity = null;
 const openShareDB = new SharedDB();
 
 /**
@@ -680,21 +677,6 @@ Events.on("start", async() => {
     // Force Addon isReady by himself
     await publish(void 0, ["Addon", "ready", "events"]);
     Events.isReady = true;
-
-    // Setup intervals
-    interval = timer.setInterval(populateMetricsInterval, POPULATE_INTERVAL_MS);
-    sanity = timer.setInterval(async() => {
-        const evtTypes = await db.all("SELECT name FROM events_type");
-        const typesName = evtTypes.map((row) => row.name);
-
-        for (const key of SUBSCRIBERS.keys()) {
-            for (const name of typesName) {
-                if (!key.includes(name)) {
-                    SUBSCRIBERS.delete(key);
-                }
-            }
-        }
-    }, SANITY_INTERVAL_MS);
 });
 
 // Addon "Stop" event listener
@@ -704,11 +686,22 @@ Events.on("stop", () => {
         transact.exit();
         transact = null;
     }
-
-    timer.clearInterval(interval);
-    timer.clearInterval(sanity);
     db.close();
 });
+
+Events.registerInterval(populateMetricsInterval, POPULATE_INTERVAL_MS);
+Events.registerInterval(async() => {
+    const evtTypes = await db.all("SELECT name FROM events_type");
+    const typesName = evtTypes.map((row) => row.name);
+
+    for (const key of SUBSCRIBERS.keys()) {
+        for (const name of typesName) {
+            if (!key.includes(name)) {
+                SUBSCRIBERS.delete(key);
+            }
+        }
+    }
+}, SANITY_INTERVAL_MS);
 
 // Register others callback(s)
 Events.registerCallback("register_event_type", registerEventType);
