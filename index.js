@@ -343,22 +343,20 @@ async function pullMIC(header, micId) {
     const ts = await getSubscriber(header.from, micId, "pull");
     const now = toUnixEpoch(new Date().getTime());
 
-    const metricDB = await openShareDB.open(mic.db_name);
-
     try {
+        const metricDB = await openShareDB.open(mic.db_name);
         const result = await metricDB.get(
             `SELECT * FROM "${micId}" WHERE harvestedAt < ? AND harvestedAt > ?`, now, ts);
-
         await db.run(
             "UPDATE subscribers SET last=? WHERE source=? AND target=? AND kind=?", now, header.from, micId, "pull");
-        openShareDB.close(mic.db_name);
 
         return result;
     }
     catch (err) {
-        openShareDB.close(mic.db_name);
-
         return null;
+    }
+    finally {
+        openShareDB.close(mic.db_name);
     }
 }
 
@@ -374,18 +372,17 @@ async function pullMIC(header, micId) {
 async function getMICStats(header, micId, walkTimestamp = false) {
     const mic = await getMIC(header, micId);
     const ts = await getSubscriber(header.from, micId);
-
-    const metricDB = await openShareDB.open(mic.db_name);
     const result = { rawCount: null };
 
     try {
+        const metricDB = await openShareDB.open(mic.db_name);
+
         // TODO: add count as type + level
         const dbRes = await metricDB.get(
             `SELECT count(*) AS rawCount FROM "${micId}" WHERE harvestedAt > ?`, ts);
         result.rawCount = dbRes.rawCount;
-        openShareDB.close(mic.db_name);
     }
-    catch (err) {
+    finally {
         openShareDB.close(mic.db_name);
     }
 
