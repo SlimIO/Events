@@ -3,6 +3,7 @@
 // Require Node.js Dependencies
 const { join } = require("path");
 const { readFile, mkdir } = require("fs").promises;
+const { performance } = require("perf_hooks");
 const os = require("os");
 
 // Require Third-Party Dependencies
@@ -341,19 +342,27 @@ async function getMIC(header, micId) {
  * @description Pull MIC from a given mic DB
  * @param {!Addon.CallbackHeader} header Callback Header
  * @param {!number} micId MetricIdentityCard ID
+ * @param {number} [level=0] level to pull
  * @returns {Promise<any>}
  */
-async function pullMIC(header, micId) {
+async function pullMIC(header, micId, level = 0) {
     const mic = await getMIC(header, micId);
-    const ts = await getSubscriber(header.from, micId, "pull");
+
+    // TODO: we may want to check the level arg depending the aggregation mode
+    // The goal is to disallow invalid level (avoid creating useless subscriber)
+    if (typeof level !== "number") {
+        throw new TypeError("level must be a number");
+    }
+
+    const ts = await getSubscriber(header.from, micId, `pull_${level}`);
     const now = toUnixEpoch(new Date().getTime());
 
     const metricDB = await openShareDB.open(mic.db_name);
     try {
         const result = await metricDB.get(
-            `SELECT * FROM "${micId}" WHERE harvestedAt < ? AND harvestedAt > ?`, now, ts);
+            `SELECT * FROM "${micId}" WHERE harvestedAt < ? AND harvestedAt > ? AND level=?`, now, ts, level);
         await db.run(
-            "UPDATE subscribers SET last=? WHERE source=? AND target=? AND kind=?", now, header.from, micId, "pull");
+            "UPDATE subscribers SET last=? WHERE source=? AND target=? AND kind=?", now, header.from, micId, `pull_${level}`);
 
         return result;
     }
@@ -377,14 +386,23 @@ async function pullMIC(header, micId) {
 async function getMICStats(header, micId, walkTimestamp = false) {
     const mic = await getMIC(header, micId);
     const ts = await getSubscriber(header.from, micId);
-    const result = { rawCount: null };
+    const tableName = `${micId}_${mic.name}`;
+    const result = { rawCount: 0, aggregate: {} };
 
     const metricDB = await openShareDB.open(mic.db_name);
     try {
-        // TODO: add count as type + level
-        const dbRes = await metricDB.get(
-            `SELECT count(*) AS rawCount FROM "${micId}" WHERE harvestedAt > ?`, ts);
-        result.rawCount = dbRes.rawCount;
+        /** @type {any[]} */
+        const dbRes = await metricDB.all(
+            `SELECT level, count(level) AS count FROM "${tableName}" WHERE harvestedAt > ? GROUP BY level ORDER BY level`, ts);
+
+        if (dbRes.length > 0) {
+            const raw = dbRes.shift();
+            result.rawCount = raw.count;
+
+            for (const row of dbRes) {
+                Reflect.set(result.aggregate, row.level, row.count);
+            }
+        }
     }
     finally {
         openShareDB.close(mic.db_name);
@@ -607,8 +625,6 @@ async function subscribe(header, subjectName) {
  * @returns {Promise<void>}
  */
 async function populateMetricsInterval() {
-    // Events.logger.writeLine("Publisher interval triggered!");
-
     // Handle Metrics DBs transactions
     for (const id of Q_METRICS.ids()) {
         const metrics = [...Q_METRICS.dequeueAll(id)];
@@ -616,10 +632,8 @@ async function populateMetricsInterval() {
             continue;
         }
 
-        console.time(`run_transact_${id}`);
-        const dbName = `${id}.db`;
-        const mDB = await openShareDB.open(dbName);
-
+        const startTime = performance.now();
+        const mDB = await openShareDB.open(id);
         try {
             await mDB.run("BEGIN EXCLUSIVE TRANSACTION;");
             await Promise.all(
@@ -633,9 +647,11 @@ async function populateMetricsInterval() {
             await mDB.run("COMMIT TRANSACTION;");
         }
         finally {
-            openShareDB.close(dbName);
+            openShareDB.close(id);
         }
-        console.timeEnd(`run_transact_${id}`);
+
+        const executeTime = (performance.now() - startTime).toFixed(2);
+        Events.logger.writeLine(`Transaction to db '${id}' executed in ${executeTime}ms`);
     }
 }
 
