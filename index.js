@@ -329,8 +329,13 @@ async function publishMetric(header, micId, [value, harvestedAt = Date.now()]) {
  */
 async function getMIC(header, micId) {
     dbShouldBeOpen();
-    if (typeof micId !== "number") {
-        throw new TypeError("metric micId should be typeof number!");
+    const micType = typeof micId;
+    if (micType !== "undefined" && micType !== "number") {
+        throw new TypeError("micId should be undefined or a number");
+    }
+
+    if (micType === "undefined") {
+        return db.all("SELECT * FROM metric_identity_card");
     }
 
     return db.get("SELECT * FROM metric_identity_card WHERE id=?", micId);
