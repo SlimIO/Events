@@ -27,7 +27,7 @@ class SharedDB {
      * @function open
      * @memberof SharedDB#
      * @param {!string} name metrics db name
-     * @returns {Promise<void>}
+     * @returns {Promise<any>}
      */
     async open(name) {
         const conn = await sqlite.open(join(METRICS_DIR, `${name}.db`));

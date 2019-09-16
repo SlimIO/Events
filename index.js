@@ -11,7 +11,7 @@ const uuid = require("uuid/v4");
 const Addon = require("@slimio/addon");
 const is = require("@slimio/is");
 const Queue = require("@slimio/queue");
-const { assertEntity, assertMIC, assertAlarm, assertCorrelateID } = require("@slimio/utils");
+const { assertEntity, assertMIC, assertAlarm, assertCorrelateID, taggedString } = require("@slimio/utils");
 const TransactManager = require("@slimio/sqlite-transaction");
 
 // Require Internal Dependencies
@@ -25,6 +25,8 @@ const POPULATE_INTERVAL_MS = 5000;
 const SANITY_INTERVAL_MS = 60000;
 const ENTITY_IDENTIFIER = new Set(["name", "id", "parent"]);
 const { Insert, Update, Delete } = TransactManager.Actions;
+const createMetricDB = taggedString`CREATE TABLE IF NOT EXISTS "${"name"}"
+("value" INTEGER NOT NULL, "harvestedAt" DATE NOT NULL, "level" TINYINT DEFAULT 0 NOT NULL);`;
 
 // GLOBALS
 let db = null;
@@ -279,9 +281,12 @@ async function declareMetricIdentity(header, mic) {
 
     // Create .db and table (if not exists).
     const mDB = await sqlite.open(join(METRICS_DIR, `${header.from}.db`));
-    await mDB.exec(
-        `CREATE TABLE IF NOT EXISTS "${lastID}_${name}" ("value" INTEGER NOT NULL, "harvestedAt" DATE NOT NULL);`);
-    mDB.close();
+    try {
+        await mDB.exec(createMetricDB({ name: `${lastID}_${name}` }));
+    }
+    finally {
+        mDB.close();
+    }
     Events.executeCallback("publish", void 0, ["Metric", "create", [header.from, lastID]]);
 
     return lastID;
@@ -343,8 +348,8 @@ async function pullMIC(header, micId) {
     const ts = await getSubscriber(header.from, micId, "pull");
     const now = toUnixEpoch(new Date().getTime());
 
+    const metricDB = await openShareDB.open(mic.db_name);
     try {
-        const metricDB = await openShareDB.open(mic.db_name);
         const result = await metricDB.get(
             `SELECT * FROM "${micId}" WHERE harvestedAt < ? AND harvestedAt > ?`, now, ts);
         await db.run(
@@ -374,9 +379,8 @@ async function getMICStats(header, micId, walkTimestamp = false) {
     const ts = await getSubscriber(header.from, micId);
     const result = { rawCount: null };
 
+    const metricDB = await openShareDB.open(mic.db_name);
     try {
-        const metricDB = await openShareDB.open(mic.db_name);
-
         // TODO: add count as type + level
         const dbRes = await metricDB.get(
             `SELECT count(*) AS rawCount FROM "${micId}" WHERE harvestedAt > ?`, ts);
@@ -613,18 +617,24 @@ async function populateMetricsInterval() {
         }
 
         console.time(`run_transact_${id}`);
-        const mDB = await sqlite.open(join(METRICS_DIR, `${id}.db`));
-        await mDB.run("BEGIN EXCLUSIVE TRANSACTION;");
-        await Promise.all(
-            metrics.map((metric) => {
-                const [tableName, value, harvestedAt] = metric;
-                const epoch = toUnixEpoch(new Date(harvestedAt).getTime());
+        const dbName = `${id}.db`;
+        const mDB = await openShareDB.open(dbName);
 
-                return mDB.run(`INSERT INTO "${tableName}" (value, harvestedAt) VALUES(?, ?)`, value, epoch);
-            })
-        );
-        await mDB.run("COMMIT TRANSACTION;");
-        mDB.close();
+        try {
+            await mDB.run("BEGIN EXCLUSIVE TRANSACTION;");
+            await Promise.all(
+                metrics.map((metric) => {
+                    const [tableName, value, harvestedAt] = metric;
+                    const epoch = toUnixEpoch(new Date(harvestedAt).getTime());
+
+                    return mDB.run(`INSERT INTO "${tableName}" (value, harvestedAt) VALUES(?, ?)`, value, epoch);
+                })
+            );
+            await mDB.run("COMMIT TRANSACTION;");
+        }
+        finally {
+            openShareDB.close(dbName);
+        }
         console.timeEnd(`run_transact_${id}`);
     }
 }
