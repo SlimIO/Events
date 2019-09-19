@@ -347,10 +347,13 @@ async function getMIC(header, micId) {
  * @description Pull MIC from a given mic DB
  * @param {!Addon.CallbackHeader} header Callback Header
  * @param {!number} micId MetricIdentityCard ID
- * @param {number} [level=0] level to pull
+ * @param {object} [options]
+ * @param {number} [options.level=0] level to pull
+ * @param {!boolean} [options.withSubscriber=true] force execution as non-subscriber
  * @returns {Promise<any>}
  */
-async function pullMIC(header, micId, level = 0) {
+async function pullMIC(header, micId, options = {}) {
+    const { withSubscriber = true, level = 0 } = options;
     const mic = await getMIC(header, micId);
 
     // TODO: we may want to check the level arg depending the aggregation mode
@@ -359,15 +362,17 @@ async function pullMIC(header, micId, level = 0) {
         throw new TypeError("level must be a number");
     }
 
-    const ts = await getSubscriber(header.from, micId, `pull_${level}`);
+    const ts = withSubscriber ? await getSubscriber(header.from, micId, `pull_${level}`) : 0;
     const now = toUnixEpoch(new Date().getTime());
 
     const metricDB = await openShareDB.open(mic.db_name);
     try {
         const result = await metricDB.get(
             `SELECT * FROM "${micId}" WHERE harvestedAt < ? AND harvestedAt > ? AND level=?`, now, ts, level);
-        await db.run(
-            "UPDATE subscribers SET last=? WHERE source=? AND target=? AND kind=?", now, header.from, micId, `pull_${level}`);
+        if (withSubscriber) {
+            await db.run(
+                "UPDATE subscribers SET last=? WHERE source=? AND target=? AND kind=?", now, header.from, micId, `pull_${level}`);
+        }
 
         return result;
     }
@@ -385,12 +390,16 @@ async function pullMIC(header, micId, level = 0) {
  * @description Get a stats for a given MIC
  * @param {!Addon.CallbackHeader} header Callback Header
  * @param {!number} micId MetricIdentityCard ID
- * @param {!boolean} walkTimestamp update the subscriber timestamp
+ * @param {object} [options]
+ * @param {!boolean} [options.walkTimestamp=false] update the subscriber timestamp
+ * @param {!boolean} [options.withSubscriber=true] force execution as non-subscriber
  * @returns {Promise<null|object>}
  */
-async function getMICStats(header, micId, walkTimestamp = false) {
+async function getMICStats(header, micId, options = {}) {
+    const { walkTimestamp = false, withSubscriber = true } = options;
+
     const mic = await getMIC(header, micId);
-    const ts = await getSubscriber(header.from, micId);
+    const ts = withSubscriber ? await getSubscriber(header.from, micId) : 0;
     const tableName = `${micId}_${mic.name}`;
     const result = { rawCount: 0, aggregate: {} };
 
@@ -413,7 +422,7 @@ async function getMICStats(header, micId, walkTimestamp = false) {
         openShareDB.close(mic.db_name);
     }
 
-    if (walkTimestamp) {
+    if (walkTimestamp && withSubscriber) {
         const now = toUnixEpoch(new Date().getTime());
         await db.run(
             "UPDATE subscribers SET last=? WHERE source=? AND target=? AND kind=?", now, header.from, micId, "stats");
