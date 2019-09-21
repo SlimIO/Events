@@ -401,20 +401,33 @@ async function getMICStats(header, micId, options = {}) {
     const mic = await getMIC(header, micId);
     const ts = withSubscriber ? await getSubscriber(header.from, micId) : 0;
     const tableName = `${micId}_${mic.name}`;
-    const result = { rawCount: 0, aggregate: {} };
+    const result = { rawCount: 0, timestamp: null, aggregate: {} };
 
     const metricDB = await openShareDB.open(mic.db_name);
     try {
-        /** @type {any[]} */
-        const dbRes = await metricDB.all(
-            `SELECT level, count(level) AS count FROM "${tableName}" WHERE harvestedAt > ? GROUP BY level ORDER BY level`, ts);
+        // eslint-disable-next-line max-len
+        const countQuery = `SELECT level, count(level) AS count FROM "${tableName}" WHERE harvestedAt > ? GROUP BY level ORDER BY level`;
+        // eslint-disable-next-line max-len
+        const tsQuery = `SELECT harvestedAt, level FROM "${tableName}" GROUP BY level HAVING MIN(ROWID) ORDER BY ROWID`;
+
+        const [dbRes, tsRes] = await Promise.all([
+            metricDB.all(countQuery, ts),
+            metricDB.all(tsQuery)
+        ]);
+        const tsMap = new Map(tsRes.map((row) => [row.level, new Date(row.harvestedAt).getTime()]));
 
         if (dbRes.length > 0) {
             const raw = dbRes.shift();
             result.rawCount = raw.count;
+            if (tsMap.has(0)) {
+                result.timestamp = tsMap.get(0);
+            }
 
-            for (const row of dbRes) {
-                Reflect.set(result.aggregate, row.level, row.count);
+            for (const { level, count } of dbRes) {
+                Reflect.set(result.aggregate, level, {
+                    timestamp: tsMap.get(level) || null,
+                    count
+                });
             }
         }
     }
