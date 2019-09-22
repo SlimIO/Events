@@ -393,7 +393,7 @@ async function pullMIC(header, micId, options = {}) {
  * @param {object} [options]
  * @param {!boolean} [options.walkTimestamp=false] update the subscriber timestamp
  * @param {!boolean} [options.withSubscriber=true] force execution as non-subscriber
- * @returns {Promise<null|object>}
+ * @returns {Promise<object[]>}
  */
 async function getMICStats(header, micId, options = {}) {
     const { walkTimestamp = false, withSubscriber = true } = options;
@@ -401,7 +401,7 @@ async function getMICStats(header, micId, options = {}) {
     const mic = await getMIC(header, micId);
     const ts = withSubscriber ? await getSubscriber(header.from, micId) : 0;
     const tableName = `${micId}_${mic.name}`;
-    const result = { rawCount: 0, timestamp: null, aggregate: {} };
+    const result = [];
 
     const metricDB = await openShareDB.open(mic.db_name);
     try {
@@ -410,25 +410,15 @@ async function getMICStats(header, micId, options = {}) {
         // eslint-disable-next-line max-len
         const tsQuery = `SELECT harvestedAt, level FROM "${tableName}" GROUP BY level HAVING MIN(ROWID) ORDER BY ROWID`;
 
-        const [dbRes, tsRes] = await Promise.all([
+        const [countRes, tsRes] = await Promise.all([
             metricDB.all(countQuery, ts),
             metricDB.all(tsQuery)
         ]);
         const tsMap = new Map(tsRes.map((row) => [row.level, new Date(row.harvestedAt).getTime()]));
 
-        if (dbRes.length > 0) {
-            const raw = dbRes.shift();
-            result.rawCount = raw.count;
-            if (tsMap.has(0)) {
-                result.timestamp = tsMap.get(0);
-            }
-
-            for (const { level, count } of dbRes) {
-                Reflect.set(result.aggregate, level, {
-                    timestamp: tsMap.get(level) || null,
-                    count
-                });
-            }
+        for (const { level, count = 0 } of countRes) {
+            const timestamp = tsMap.has(level) ? tsMap.get(level) : Date.now();
+            result.push({ level, count, timestamp });
         }
     }
     finally {
@@ -442,6 +432,36 @@ async function getMICStats(header, micId, options = {}) {
     }
 
     return result;
+}
+
+/**
+ * @async
+ * @function deleteMICRows
+ * @description Delete all rows
+ * @param {!Addon.CallbackHeader} header Callback Header
+ * @param {!number} micId MetricIdentityCard ID
+ * @param {object} [options]
+ * @param {number} [options.since]
+ * @param {number} [options.level=0]
+ * @returns {Promise<void>}
+ */
+async function deleteMICRows(header, micId, options = {}) {
+    const { since, level = 0 } = options;
+
+    if (typeof since !== "number") {
+        throw new TypeError("since must be typeof number");
+    }
+    const mic = await getMIC(header, micId);
+    const tableName = `${micId}_${mic.name}`;
+
+    const metricDB = await openShareDB.open(mic.db_name);
+    try {
+        const query = `DELETE FROM "${tableName}" WHERE harvestedAt < ? AND level = ?`;
+        const result = await metricDB.run(query, toUnixEpoch(since), level);
+    }
+    finally {
+        openShareDB.close(mic.db_name);
+    }
 }
 
 /**
@@ -778,6 +798,7 @@ Events.registerCallback("declare_mic", declareMetricIdentity);
 Events.registerCallback("publish_metric", publishMetric);
 Events.registerCallback("get_mic_stats", getMICStats);
 Events.registerCallback("pull_mic", pullMIC);
+Events.registerCallback("delete_mic_rows", deleteMICRows);
 Events.registerCallback("get_mic", getMIC);
 
 // Register alarms callback(s)
