@@ -10,7 +10,18 @@ $ slimio --add events
 $ slimio --add https://github.com/SlimIO/Events
 ```
 
-> Note: this addon is automatically installed with the slimio -i command.
+> Note: this addon is automatically installed with the slimio init command.
+
+## Events Kinds
+
+| Type | Description |
+| --- | --- |
+| Alarm | N/A |
+| Metrics | N/A |
+| Error | An error that has occured somewhere in the product (they are useful for fire hunting) |
+| Log | N/A |
+| Entity (CI) | A SlimIO Entity is like a Configuration Item |
+| MIC | MIC mean Metric Identity Card. It contain everything about a given metric (type, description etc..) |
 
 ## Dependencies
 
