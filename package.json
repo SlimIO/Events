@@ -3,6 +3,7 @@
   "version": "0.2.0",
   "description": "SlimIO - Events (Built-in Addon)",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "doc": "jsdoc -c ./jsdoc.json -r -R ./README.md -P ./package.json --verbose",
     "test": "cross-env psp && node test/test.js"

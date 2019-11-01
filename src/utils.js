@@ -1,11 +1,9 @@
-"use strict";
-
 /**
  * @function twoDigits
  * @param {number | string} field field
  * @returns {string}
  */
-function twoDigits(field) {
+export function twoDigits(field) {
     return `0${field}`.slice(-2);
 }
 
@@ -14,7 +12,7 @@ function twoDigits(field) {
  * @param {!number} timestamp
  * @returns {string}
  */
-function toUnixEpoch(timestamp) {
+export function toUnixEpoch(timestamp) {
     const _d = new Date(timestamp);
 
     const group1 = `${_d.getFullYear()}-${twoDigits(_d.getMonth() + 1)}-${twoDigits(_d.getUTCDate())}`;
@@ -22,5 +20,3 @@ function toUnixEpoch(timestamp) {
 
     return `${group1} ${group2}`;
 }
-
-module.exports = { toUnixEpoch };

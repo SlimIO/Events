@@ -1,23 +1,27 @@
-"use strict";
-
 // Require Node.js Dependencies
-const { join } = require("path");
-const { readFile, mkdir } = require("fs").promises;
-const { performance } = require("perf_hooks");
-const os = require("os");
+import { join, dirname } from "path";
+import { fileURLToPath } from 'url';
+import { performance } from "perf_hooks";
+import os from "os";
+import { promises as fs } from "fs";
+const { readFile, mkdir } = fs;
 
 // Require Third-Party Dependencies
-const sqlite = require("sqlite");
-const uuid = require("uuid/v4");
-const Addon = require("@slimio/addon");
-const is = require("@slimio/is");
-const Queue = require("@slimio/queue");
-const { assertEntity, assertMIC, assertAlarm, assertCorrelateID, taggedString } = require("@slimio/utils");
-const TransactManager = require("@slimio/sqlite-transaction");
+import sqlite from "sqlite";
+import uuid from "uuid";
+import Addon from "@slimio/addon";
+import is from "@slimio/is";
+import Queue from "@slimio/queue";
+import Utils from "@slimio/utils";
+import TransactManager from "@slimio/sqlite-transaction";
+const { assertEntity, assertMIC, assertAlarm, assertCorrelateID, taggedString } = Utils;
 
 // Require Internal Dependencies
-const { toUnixEpoch } = require("./src/utils");
-const SharedDB = require("./src/sharedDb");
+import { toUnixEpoch } from "./src/utils.js";
+import SharedDB from "./src/sharedDb.js";
+
+// Node.js CJS constant
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // CONSTANTS
 const DB_DIR = join(__dirname, "db");
@@ -169,7 +173,7 @@ async function declareEntity(header, entity) {
     // Else, create a new row for the entity!
     const { lastID } = await db.run(
         "INSERT INTO entity (uuid, name, parent, description) VALUES(?, ?, ?, ?)",
-        uuid(), name, parent, description
+        uuid.v4(), name, parent, description
     );
     if (typeof lastID !== "number") {
         throw new Error("Failed to insert new entity!");
@@ -483,7 +487,7 @@ async function createAlarm(header, alarm) {
     if (typeof row === "undefined") {
         await db.run(
             "INSERT INTO alarms (uuid, message, severity, correlate_key, entity_id) VALUES(?, ?, ?, ?, ?)",
-            uuid(), message, severity, correlateKey, entityId
+            uuid.v4(), message, severity, correlateKey, entityId
         );
         Events.executeCallback("publish", void 0, ["Alarm", "open", `${entityId}#${correlateKey}`]);
 
@@ -808,4 +812,4 @@ Events.registerCallback("get_alarms_occurence", getAlarmsOccurence);
 Events.registerCallback("remove_alarm", removeAlarm);
 
 // Export "Events" addon for Core
-module.exports = Events;
+export default Events;

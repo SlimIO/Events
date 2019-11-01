@@ -1,10 +1,12 @@
-"use strict";
-
 // Require Node.js Dependencies
-const { join } = require("path");
+import { join, dirname } from "path";
+import { fileURLToPath } from 'url';
 
 // Require Third-Party Dependencies
-const sqlite = require("sqlite");
+import sqlite from "sqlite";
+
+// Node.js CJS constant
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // CONSTANTS
 const METRICS_DIR = join(__dirname, "..", "db", "metrics");
@@ -12,7 +14,7 @@ const METRICS_DIR = join(__dirname, "..", "db", "metrics");
 // Symbols
 const SymList = Symbol("SymList");
 
-class SharedDB {
+export default class SharedDB {
     /**
      * @class SharedDB
      */
@@ -61,5 +63,3 @@ class SharedDB {
         }
     }
 }
-
-module.exports = SharedDB;
