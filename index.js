@@ -1,6 +1,6 @@
 // Require Node.js Dependencies
 import { join, dirname } from "path";
-import { fileURLToPath } from 'url';
+import { fileURLToPath } from "url";
 import { performance } from "perf_hooks";
 import os from "os";
 import { promises as fs } from "fs";
@@ -20,7 +20,7 @@ const { assertEntity, assertMIC, assertAlarm, assertCorrelateID, taggedString } 
 import { toUnixEpoch } from "./src/utils.js";
 import SharedDB from "./src/sharedDb.js";
 
-// Node.js CJS constant
+// Node.js CONSTANTS
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // CONSTANTS

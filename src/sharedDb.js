@@ -1,6 +1,6 @@
 // Require Node.js Dependencies
 import { join, dirname } from "path";
-import { fileURLToPath } from 'url';
+import { fileURLToPath } from "url";
 
 // Require Third-Party Dependencies
 import sqlite from "sqlite";

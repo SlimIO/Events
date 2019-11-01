@@ -1,5 +1,6 @@
 {
     "extends": "@slimio/eslint-config",
+    "parser": "babel-eslint",
     "parserOptions": {
         "sourceType": "module"
     },
