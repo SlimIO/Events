@@ -2,7 +2,7 @@
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { performance } from "perf_hooks";
-import os from "os";
+import os, { cpus } from "os";
 import { promises as fs } from "fs";
 const { readFile, mkdir } = fs;
 
@@ -305,8 +305,11 @@ async function declareMetricIdentity(header, mic) {
  * @param {!number} micId MetricIdentityCard ID
  * @param {!Array} metricValue metric Array value
  * @returns {Promise<void>}
+ *
+ * @throws {TypeError}
+ * @throws {Error}
  */
-async function publishMetric(header, micId, [value, harvestedAt = Date.now()]) {
+async function publishMetric(header, micId, [value, harvestedAt = Date.now(), level = 0]) {
     dbShouldBeOpen();
     if (typeof micId !== "number") {
         throw new TypeError("metric micId should be typeof number!");
@@ -314,13 +317,16 @@ async function publishMetric(header, micId, [value, harvestedAt = Date.now()]) {
     if (typeof value !== "number") {
         throw new TypeError("metric value should be typeof number!");
     }
+    if (level > 0 && header.from !== "aggregator") {
+        throw new Error("Only aggregate is allowed to publish metric with level higher than zero.");
+    }
 
     const row = await db.get("SELECT name FROM metric_identity_card WHERE id=?", micId);
     if (typeof row === "undefined") {
         throw new Error(`Unable to found metric card with id ${micId}`);
     }
 
-    Q_METRICS.enqueue(header.from, [`${micId}_${row.name}`, value, harvestedAt]);
+    Q_METRICS.enqueue(header.from, [`${micId}_${row.name}`, value, harvestedAt, level]);
 }
 
 /**
@@ -461,7 +467,7 @@ async function deleteMICRows(header, micId, options = {}) {
     const metricDB = await openShareDB.open(mic.db_name);
     try {
         const query = `DELETE FROM "${tableName}" WHERE harvestedAt < ? AND level = ?`;
-        const result = await metricDB.run(query, toUnixEpoch(since), level);
+        await metricDB.run(query, toUnixEpoch(since), level);
     }
     finally {
         openShareDB.close(mic.db_name);
@@ -689,10 +695,11 @@ async function populateMetricsInterval() {
             await mDB.run("BEGIN EXCLUSIVE TRANSACTION;");
             await Promise.all(
                 metrics.map((metric) => {
-                    const [tableName, value, harvestedAt] = metric;
+                    const [tableName, value, harvestedAt, level = 0] = metric;
                     const epoch = toUnixEpoch(new Date(harvestedAt).getTime());
+                    const query = `INSERT INTO "${tableName}" (value, harvestedAt, level) VALUES(?, ?, ?)`;
 
-                    return mDB.run(`INSERT INTO "${tableName}" (value, harvestedAt) VALUES(?, ?)`, value, epoch);
+                    return mDB.run(query, value, epoch, level);
                 })
             );
             await mDB.run("COMMIT TRANSACTION;");
