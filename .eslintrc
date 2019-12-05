@@ -1,11 +1,6 @@
 {
     "extends": "@slimio/eslint-config",
-    "parser": "babel-eslint",
-    "parserOptions": {
-        "sourceType": "module"
-    },
     "rules": {
-        "no-return-await": "off",
-        "require-await": "off"
+        "no-return-await": "off"
     }
 }
