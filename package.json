@@ -13,7 +13,7 @@
     "url": "git+https://github.com/SlimIO/Events.git"
   },
   "engines": {
-    "node": ">=10"
+    "node": ">=12"
   },
   "husky": {
     "hooks": {
