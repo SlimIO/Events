@@ -52,7 +52,7 @@
     "@types/es6-shim": "^0.31.39",
     "@types/sqlite3": "^3.1.5",
     "cross-env": "^6.0.3",
-    "eslint": "^6.6.0",
+    "eslint": "^6.8.0",
     "husky": "^3.0.9",
     "japa": "^3.0.1",
     "jsdoc": "^3.6.2",
