@@ -51,7 +51,7 @@
     "@slimio/eslint-config": "^4.0.0-next.3",
     "@types/es6-shim": "^0.31.39",
     "@types/sqlite3": "^3.1.5",
-    "cross-env": "^6.0.3",
+    "cross-env": "^7.0.2",
     "eslint": "^6.6.0",
     "husky": "^3.0.9",
     "japa": "^3.0.1",
