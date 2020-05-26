@@ -64,7 +64,7 @@
     "@slimio/queue": "^0.2.1",
     "@slimio/sqlite-transaction": "^0.1.0",
     "@slimio/utils": "^0.9.0",
-    "sqlite": "^3.0.3",
+    "sqlite": "^4.0.9",
     "uuid": "^3.3.3"
   }
 }
