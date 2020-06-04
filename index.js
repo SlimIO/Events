@@ -8,7 +8,7 @@ const { readFile, mkdir } = fs;
 
 // Require Third-Party Dependencies
 import sqlite from "sqlite";
-import uuid from "uuid";
+import uuid from "@lukeed/uuid";
 import Addon from "@slimio/addon";
 import is from "@slimio/is";
 import Queue from "@slimio/queue";
@@ -173,7 +173,7 @@ async function declareEntity(header, entity) {
     // Else, create a new row for the entity!
     const { lastID } = await db.run(
         "INSERT INTO entity (uuid, name, parent, description) VALUES(?, ?, ?, ?)",
-        uuid.v4(), name, parent, description
+        uuid(), name, parent, description
     );
     if (typeof lastID !== "number") {
         throw new Error("Failed to insert new entity!");
@@ -493,7 +493,7 @@ async function createAlarm(header, alarm) {
     if (typeof row === "undefined") {
         await db.run(
             "INSERT INTO alarms (uuid, message, severity, correlate_key, entity_id) VALUES(?, ?, ?, ?, ?)",
-            uuid.v4(), message, severity, correlateKey, entityId
+            uuid(), message, severity, correlateKey, entityId
         );
         Events.executeCallback("publish", void 0, ["Alarm", "open", `${entityId}#${correlateKey}`]);
 
