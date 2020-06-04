@@ -2,12 +2,13 @@
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { performance } from "perf_hooks";
-import os, { cpus } from "os";
+import os from "os";
 import { promises as fs } from "fs";
 const { readFile, mkdir } = fs;
 
 // Require Third-Party Dependencies
-import sqlite from "sqlite";
+import * as sqlite from "sqlite";
+import sqlite3 from "sqlite3";
 import uuid from "@lukeed/uuid";
 import Addon from "@slimio/addon";
 import is from "@slimio/is";
@@ -285,7 +286,10 @@ async function declareMetricIdentity(header, mic) {
         name, desc, unit, interval, max, header.from, entityId);
 
     // Create .db and table (if not exists).
-    const mDB = await sqlite.open(join(METRICS_DIR, `${header.from}.db`));
+    const mDB = await sqlite.open({
+        filename: join(METRICS_DIR, `${header.from}.db`),
+        driver: sqlite3.Database
+    });
     try {
         await mDB.exec(createMetricDB({ name: `${lastID}_${name}` }));
     }
@@ -719,7 +723,10 @@ Events.on("start", async() => {
     await mkdir(METRICS_DIR, { recursive: true });
 
     // Open SQLite DB
-    db = await sqlite.open(join(DB_DIR, "events.db"));
+    db = await sqlite.open({
+        filename: join(DB_DIR, "events.db"),
+        driver: sqlite3.Database
+    });
     await db.exec(await readFile(join(__dirname, "sql", "events.sql"), "utf-8"));
     await Promise.all([
         registerEventType(void 0, "Addon"),

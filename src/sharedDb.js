@@ -3,7 +3,8 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
 // Require Third-Party Dependencies
-import sqlite from "sqlite";
+import * as sqlite from "sqlite";
+import sqlite3 from "sqlite3";
 
 // Node.js CJS constant
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -32,7 +33,10 @@ export default class SharedDB {
      * @returns {Promise<any>}
      */
     async open(name) {
-        const conn = await sqlite.open(join(METRICS_DIR, `${name}.db`));
+        const conn = await sqlite.open({
+            filename: join(METRICS_DIR, `${name}.db`),
+            driver: sqlite3.Database
+        });
 
         if (this[SymList].has(name)) {
             this[SymList].get(name).count++;
