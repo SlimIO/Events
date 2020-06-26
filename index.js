@@ -233,8 +233,13 @@ async function searchEntities(header, searchOptions = Object.create(null)) {
  */
 async function getEntityByID(header, entityId) {
     dbShouldBeOpen();
-    if (typeof entityId !== "number") {
-        throw new TypeError("entityId must be typeof number");
+    const entityIdType = typeof entityId;
+    if (entityIdType !== "undefined" && entityIdType !== "number") {
+        throw new TypeError("entityId must be typeof number or undefined");
+    }
+
+    if (entityIdType === "undefined") {
+        return await db.all("SELECT * FROM entity");
     }
 
     return await db.get("SELECT * FROM entity WHERE id=?", entityId);
